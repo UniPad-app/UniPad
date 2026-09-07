@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+             xmlns:loc="clr-namespace:UniPad.App.Localization"
+             mc:Ignorable="d"
+             d:DesignWidth="900" d:DesignHeight="560"
+             x:Class="UniPad.App.Views.AboutView"
+             x:DataType="vm:AboutViewModel">
+
+  <!--
+    Credits are not decoration: SDL, ViGEm, HidHide, Avalonia, Serilog and the community mapping
+    database all require attribution, so this page is a licence obligation as much as a UI page.
+  -->
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="14" Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
+
+      <StackPanel Spacing="2">
+        <TextBlock FontSize="22" FontWeight="SemiBold"
+                   Text="{Binding Text[about.heading], Source={x:Static loc:Strings.Instance}}" />
+        <TextBlock Classes="caption"
+                   Text="{Binding Text[about.tagline], Source={x:Static loc:Strings.Instance}}" />
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock Classes="caption"
+                   Text="{Binding Text[about.version], Source={x:Static loc:Strings.Instance}}" />
+        <TextBlock Classes="caption" FontWeight="SemiBold" Text="{Binding Version}" />
+      </StackPanel>
+
+      <Separator />
+
+      <TextBlock TextWrapping="Wrap" LineHeight="19"
+                 Text="{Binding Text[about.description], Source={x:Static loc:Strings.Instance}}" />
+
+      <HeaderedContentControl Classes="groupBox"
+                              Header="{Binding Text[about.credits], Source={x:Static loc:Strings.Instance}}">
+        <StackPanel Spacing="3">
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditSdl], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditViGEm], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditHidHide], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditAvalonia], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditSerilog], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditToolkit], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[about.creditDb], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </HeaderedContentControl>
+
+      <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="18"
+                 Text="{Binding Text[about.disclaimer], Source={x:Static loc:Strings.Instance}}" />
+
+      <Separator />
+
+      <StackPanel Spacing="4">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="caption"
+                     Text="{Binding Text[about.dataFolder], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Classes="caption" Text="{Binding DataRoot}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <Button Command="{Binding OpenDataFolderCommand}"
+                  Content="{Binding Text[action.openDataFolder], Source={x:Static loc:Strings.Instance}}" />
+          <Button Command="{Binding OpenLogsCommand}"
+                  Content="{Binding Text[action.openLogs], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

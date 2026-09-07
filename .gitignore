@@ -1,0 +1,44 @@
+# ---------- Build output ----------
+[Bb]in/
+[Oo]bj/
+build/out/
+publish/
+artifacts/
+
+# ---------- IDE / editor ----------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+# ---------- NuGet ----------
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# ---------- Driver installers ----------
+src/UniPad.App/Resources/*.msi
+src/UniPad.App/Resources/*.exe
+
+# ---------- Data that the program itself generates at runtime ----------
+UniPad_Data/
+**/UniPad_Data/
+*.log
+crash.txt
+hidhide-journal.json
+*.corrupt-*
+
+# ---------- OS junk ----------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------- misc ----------
+*.tmp

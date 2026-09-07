@@ -1,0 +1,109 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+        xmlns:views="clr-namespace:UniPad.App.Views"
+        xmlns:loc="clr-namespace:UniPad.App.Localization"
+        mc:Ignorable="d"
+        d:DesignWidth="1024" d:DesignHeight="660"
+        x:Class="UniPad.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding Text[app.title], Source={x:Static loc:Strings.Instance}}"
+        Icon="/Assets/tray.ico"
+        Width="1024" Height="660"
+        MinWidth="900" MinHeight="580"
+        WindowStartupLocation="CenterScreen">
+
+  <!--
+    Overall shape follows yuzu's configuration dialog: a narrow category sidebar on the left, the
+    tabbed content area on the right, then a status strip and an action row along the bottom.
+  -->
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+    <!-- ============ Warning banners ============ -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="8,8,8,0">
+      <Border Classes="banner" IsVisible="{Binding ShowDriverBanner}"
+              BorderBrush="{DynamicResource DangerBrush}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" TextWrapping="Wrap" Text="{Binding DriverBannerText}" />
+          <Button Grid.Column="1" Classes="accent"
+                  Command="{Binding Advanced.InstallViGEmCommand}"
+                  Content="{Binding Text[action.install], Source={x:Static loc:Strings.Instance}}" />
+        </Grid>
+      </Border>
+
+      <Border Classes="banner" IsVisible="{Binding ShowHidHideBanner}">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBlock Grid.Column="0" TextWrapping="Wrap"
+                     Text="{Binding Text[status.hidhideMissing], Source={x:Static loc:Strings.Instance}}" />
+          <Button Grid.Column="1"
+                  Command="{Binding Advanced.InstallHidHideCommand}"
+                  Content="{Binding Text[action.install], Source={x:Static loc:Strings.Instance}}"
+                  Margin="0,0,4,0" />
+          <Button Grid.Column="2"
+                  Command="{Binding DismissHidHideBannerCommand}"
+                  Content="{Binding Text[action.dismiss], Source={x:Static loc:Strings.Instance}}" />
+        </Grid>
+      </Border>
+    </StackPanel>
+
+    <!-- ============ Sidebar + tabs ============ -->
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="8">
+
+      <ListBox Grid.Column="0" Classes="sidebar" Width="92" Margin="0,0,6,0"
+               SelectedIndex="0">
+        <ListBoxItem Content="{Binding Text[nav.controls], Source={x:Static loc:Strings.Instance}}" />
+      </ListBox>
+
+      <TabControl Grid.Column="1" SelectedIndex="{Binding SelectedTabIndex}"
+                  ItemsSource="{Binding AllTabs}">
+        <TabControl.ItemTemplate>
+          <DataTemplate DataType="vm:TabDescriptor">
+            <TextBlock Text="{Binding Header}" />
+          </DataTemplate>
+        </TabControl.ItemTemplate>
+        <TabControl.ContentTemplate>
+          <DataTemplate DataType="vm:TabDescriptor">
+            <ContentControl Content="{Binding Content}" />
+          </DataTemplate>
+        </TabControl.ContentTemplate>
+      </TabControl>
+    </Grid>
+
+    <!-- ============ Status strip ============ -->
+    <Border Grid.Row="2" Classes="statusBar">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0" Classes="caption" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1" Classes="caption" Text="{Binding ConnectedSummary}" Margin="12,0" />
+        <TextBlock Grid.Column="2" Classes="caption" Text="{Binding Advanced.PollStatistics}" />
+      </Grid>
+    </Border>
+
+    <!-- ============ Action row ============ -->
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="8">
+      <Button Grid.Column="0" Classes="accent"
+              Command="{Binding AutoDetectAllCommand}"
+              Content="Auto-Detect All" Margin="0,0,4,0" />
+      <Button Grid.Column="1"
+              Command="{Binding ClearAllCommand}"
+              Content="{Binding Text[action.clearAll], Source={x:Static loc:Strings.Instance}}" Margin="0,0,4,0" />
+      <Button Grid.Column="2"
+              Command="{Binding SaveProfileCommand}"
+              Content="{Binding Text[action.save], Source={x:Static loc:Strings.Instance}}" />
+
+      <Button Grid.Column="4" Classes="accent"
+              Command="{Binding OkCommand}"
+              Content="{Binding Text[action.ok], Source={x:Static loc:Strings.Instance}}"
+              MinWidth="72" Margin="0,0,4,0" />
+      <Button Grid.Column="5"
+              Command="{Binding ApplyCommand}"
+              Content="{Binding Text[action.apply], Source={x:Static loc:Strings.Instance}}"
+              MinWidth="72" Margin="0,0,4,0" />
+      <Button Grid.Column="6"
+              Command="{Binding CancelCommand}"
+              Content="{Binding Text[action.cancel], Source={x:Static loc:Strings.Instance}}"
+              MinWidth="72" />
+    </Grid>
+  </Grid>
+</Window>

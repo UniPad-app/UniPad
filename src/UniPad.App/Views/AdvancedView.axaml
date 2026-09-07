@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+             xmlns:loc="clr-namespace:UniPad.App.Localization"
+             mc:Ignorable="d"
+             d:DesignWidth="900" d:DesignHeight="560"
+             x:Class="UniPad.App.Views.AdvancedView"
+             x:DataType="vm:AdvancedViewModel">
+
+  <!--
+    Two halves: global options and driver state on top, then the raw device monitor. The monitor is
+    the single most valuable diagnostic when a no-name adapter reports axes nobody can guess, so it
+    gets the remaining vertical space.
+  -->
+  <Grid RowDefinitions="Auto,*" Margin="6">
+
+    <!-- ============ Options and driver state ============ -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,*">
+
+      <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,3,0">
+
+        <HeaderedContentControl Classes="groupBox"
+                                Header="{Binding Text[nav.general], Source={x:Static loc:Strings.Instance}}">
+          <StackPanel Spacing="4">
+            <CheckBox IsChecked="{Binding OutputEnabled}"
+                      Content="{Binding Text[opt.outputEnabled], Source={x:Static loc:Strings.Instance}}" />
+            <CheckBox IsChecked="{Binding HidePhysicalControllers}"
+                      Content="{Binding Text[opt.hidePhysical], Source={x:Static loc:Strings.Instance}}" />
+            <CheckBox IsChecked="{Binding StartMinimizedToTray}"
+                      Content="{Binding Text[opt.startMinimized], Source={x:Static loc:Strings.Instance}}" />
+            <CheckBox IsChecked="{Binding MinimizeToTrayOnClose}"
+                      Content="{Binding Text[opt.minimizeOnClose], Source={x:Static loc:Strings.Instance}}" />
+            <CheckBox IsChecked="{Binding RunAtStartup}"
+                      Content="{Binding Text[opt.runAtStartup], Source={x:Static loc:Strings.Instance}}" />
+            <CheckBox IsChecked="{Binding VerboseLogging}"
+                      Content="{Binding Text[opt.verboseLogging], Source={x:Static loc:Strings.Instance}}" />
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,4,0,0">
+              <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
+                         Margin="0,0,6,3"
+                         Text="{Binding Text[opt.pollRate], Source={x:Static loc:Strings.Instance}}" />
+              <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,3" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding PollRates}" SelectedItem="{Binding SelectedPollRate}" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
+                         Margin="0,0,6,3"
+                         Text="{Binding Text[opt.theme], Source={x:Static loc:Strings.Instance}}" />
+              <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,3" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" />
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
+                         Margin="0,0,6,0"
+                         Text="{Binding Text[opt.language], Source={x:Static loc:Strings.Instance}}" />
+              <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" />
+            </Grid>
+          </StackPanel>
+        </HeaderedContentControl>
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Spacing="2" Margin="3,0,0,0">
+
+        <HeaderedContentControl Classes="groupBox"
+                                Header="{Binding Text[status.emulatedDevices], Source={x:Static loc:Strings.Instance}}">
+          <StackPanel Spacing="5">
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding DriverStatus}" />
+            <Button IsVisible="{Binding IsDriverMissing}"
+                    Classes="accent"
+                    HorizontalAlignment="Left"
+                    Command="{Binding InstallViGEmCommand}"
+                    Content="{Binding Text[action.install], Source={x:Static loc:Strings.Instance}}" />
+
+            <Separator />
+
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding HidHideStatus}" />
+            <Button IsVisible="{Binding IsHidHideMissing}"
+                    HorizontalAlignment="Left"
+                    Command="{Binding InstallHidHideCommand}"
+                    Content="{Binding Text[action.install], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+        </HeaderedContentControl>
+
+        <HeaderedContentControl Classes="groupBox"
+                                Header="{Binding Text[status.other], Source={x:Static loc:Strings.Instance}}">
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Command="{Binding UpdateMappingDatabaseCommand}"
+                      Content="{Binding Text[action.update], Source={x:Static loc:Strings.Instance}}" />
+              <Button Command="{Binding OpenDataFolderCommand}"
+                      Content="{Binding Text[action.openDataFolder], Source={x:Static loc:Strings.Instance}}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Classes="caption" Text="{Binding PortableModeText}" />
+              <TextBlock Classes="caption" Text="{Binding DataRoot}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Foreground="{DynamicResource WarningBrush}"
+                       Text="{Binding Text[msg.antiCheat], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+        </HeaderedContentControl>
+      </StackPanel>
+    </Grid>
+
+    <!-- ============ Raw device monitor ============ -->
+    <HeaderedContentControl Grid.Row="1" Classes="groupBox" Margin="0,2,0,0"
+                            Header="{Binding Text[status.controllers], Source={x:Static loc:Strings.Instance}}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding DeviceRows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:DeviceDiagnosticsRow">
+              <Border Classes="banner" Margin="0,0,0,3" BorderBrush="{DynamicResource BorderBrush}">
+                <StackPanel Spacing="1">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="caption" Text="{Binding Identifier}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="caption" Text="{Binding Capabilities}" />
+                  <TextBlock Classes="mono" Text="{Binding AxisValues}" TextWrapping="Wrap" />
+                  <TextBlock Classes="mono" Text="{Binding ButtonValues}" TextWrapping="Wrap" />
+                  <TextBlock Classes="mono" Text="{Binding HatValues}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </HeaderedContentControl>
+  </Grid>
+</UserControl>

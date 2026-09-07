@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>UniPad.Core</RootNamespace>
+    <AssemblyName>UniPad.Core</AssemblyName>
+    <!--
+      The core library must build on any host OS so that CI / cross compilation works,
+      but at runtime the Windows-only pieces (ViGEm, HidHide, registry) are guarded by
+      OperatingSystem.IsWindows() checks.
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ppy.SDL3-CS" Version="2026.722.0" />
+    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <!--
+      Registry access is needed to detect ViGEmBus / HidHide installs. Targeting plain net9.0
+      (rather than net9.0-windows) keeps the unit tests runnable on any OS, and this package
+      type-forwards to the in-box implementation when running on Windows.
+    -->
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+  </ItemGroup>
+
+</Project>

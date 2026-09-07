@@ -1,0 +1,40 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:UniPad.App"
+             xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+             xmlns:views="clr-namespace:UniPad.App.Views"
+             xmlns:ctl="clr-namespace:UniPad.App.Views.Controls"
+             x:Class="UniPad.App.App"
+             RequestedThemeVariant="Dark">
+
+  <!--
+    Application-level data templates map each tab view model onto its view, so the tab strip can
+    hold heterogeneous content without a view locator or any code-behind switch.
+    BindButtonViewModel is included here so that bind buttons resolve through the same
+    type-matched lookup instead of a blanket ContentControl style.
+  -->
+  <Application.DataTemplates>
+    <DataTemplate DataType="vm:PlayerConfigViewModel">
+      <views:PlayerConfigView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:AdvancedViewModel">
+      <views:AdvancedView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:AboutViewModel">
+      <views:AboutView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:BindButtonViewModel">
+      <ctl:BindButtonView />
+    </DataTemplate>
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <!-- Fluent supplies the base control templates; our own styles then reshape them into the
+         flatter, squarer Qt Widgets look. -->
+    <FluentTheme />
+    <StyleInclude Source="avares://UniPad/Styles/Palette.axaml" />
+    <StyleInclude Source="avares://UniPad/Styles/Controls.axaml" />
+    <StyleInclude Source="avares://UniPad/Views/Controls/BindButtonTemplate.axaml" />
+  </Application.Styles>
+
+</Application>

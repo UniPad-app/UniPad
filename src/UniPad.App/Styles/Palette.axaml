@@ -1,0 +1,103 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Colour palette. Two variants are declared so the whole application re-themes by switching
+    Application.RequestedThemeVariant, with no code touching individual controls.
+
+    The dark values reproduce the Qt Fusion Dark palette that yuzu shipped with, which is what
+    makes the result feel familiar to anyone who configured controllers there.
+  -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ============ DARK ============ -->
+        <ResourceDictionary x:Key="Dark">
+          <Color x:Key="WindowBackgroundColor">#353535</Color>
+          <Color x:Key="PanelBackgroundColor">#2A2A2A</Color>
+          <Color x:Key="InputBackgroundColor">#232323</Color>
+          <Color x:Key="BorderColor">#4A4A4A</Color>
+          <Color x:Key="BorderStrongColor">#5A5A5A</Color>
+          <Color x:Key="TextPrimaryColor">#E8E8E8</Color>
+          <Color x:Key="TextSecondaryColor">#B4B4B4</Color>
+          <Color x:Key="TextDisabledColor">#7A7A7A</Color>
+          <Color x:Key="AccentColor">#2A82DA</Color>
+          <Color x:Key="AccentHoverColor">#3A92EA</Color>
+          <Color x:Key="AccentPressedColor">#1A72CA</Color>
+          <Color x:Key="CaptureColor">#E5A00D</Color>
+          <Color x:Key="SuccessColor">#4CAF50</Color>
+          <Color x:Key="WarningColor">#FF9800</Color>
+          <Color x:Key="DangerColor">#F44336</Color>
+          <Color x:Key="TabStripBackgroundColor">#2F2F2F</Color>
+          <Color x:Key="TabSelectedBackgroundColor">#353535</Color>
+          <Color x:Key="SidebarBackgroundColor">#2A2A2A</Color>
+          <Color x:Key="ControllerBodyColor">#F2F2F2</Color>
+          <Color x:Key="ControllerDetailColor">#2A2A2A</Color>
+          <Color x:Key="StickWellColor">#1C1C1C</Color>
+        </ResourceDictionary>
+
+        <!-- ============ LIGHT ============ -->
+        <ResourceDictionary x:Key="Light">
+          <Color x:Key="WindowBackgroundColor">#F0F0F0</Color>
+          <Color x:Key="PanelBackgroundColor">#FAFAFA</Color>
+          <Color x:Key="InputBackgroundColor">#FFFFFF</Color>
+          <Color x:Key="BorderColor">#C8C8C8</Color>
+          <Color x:Key="BorderStrongColor">#A0A0A0</Color>
+          <Color x:Key="TextPrimaryColor">#1E1E1E</Color>
+          <Color x:Key="TextSecondaryColor">#4A4A4A</Color>
+          <Color x:Key="TextDisabledColor">#9A9A9A</Color>
+          <Color x:Key="AccentColor">#1A6FBE</Color>
+          <Color x:Key="AccentHoverColor">#2A82DA</Color>
+          <Color x:Key="AccentPressedColor">#0F5A9E</Color>
+          <Color x:Key="CaptureColor">#D18700</Color>
+          <Color x:Key="SuccessColor">#2E7D32</Color>
+          <Color x:Key="WarningColor">#E65100</Color>
+          <Color x:Key="DangerColor">#C62828</Color>
+          <Color x:Key="TabStripBackgroundColor">#E4E4E4</Color>
+          <Color x:Key="TabSelectedBackgroundColor">#F0F0F0</Color>
+          <Color x:Key="SidebarBackgroundColor">#E8E8E8</Color>
+          <Color x:Key="ControllerBodyColor">#FFFFFF</Color>
+          <Color x:Key="ControllerDetailColor">#3A3A3A</Color>
+          <Color x:Key="StickWellColor">#D8D8D8</Color>
+        </ResourceDictionary>
+
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!-- Brushes derived from the active variant's colours. -->
+      <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{DynamicResource WindowBackgroundColor}" />
+      <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{DynamicResource PanelBackgroundColor}" />
+      <SolidColorBrush x:Key="InputBackgroundBrush" Color="{DynamicResource InputBackgroundColor}" />
+      <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource BorderColor}" />
+      <SolidColorBrush x:Key="BorderStrongBrush" Color="{DynamicResource BorderStrongColor}" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="{DynamicResource TextPrimaryColor}" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondaryColor}" />
+      <SolidColorBrush x:Key="TextDisabledBrush" Color="{DynamicResource TextDisabledColor}" />
+      <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
+      <SolidColorBrush x:Key="AccentHoverBrush" Color="{DynamicResource AccentHoverColor}" />
+      <SolidColorBrush x:Key="AccentPressedBrush" Color="{DynamicResource AccentPressedColor}" />
+      <SolidColorBrush x:Key="CaptureBrush" Color="{DynamicResource CaptureColor}" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}" />
+      <SolidColorBrush x:Key="WarningBrush" Color="{DynamicResource WarningColor}" />
+      <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}" />
+      <SolidColorBrush x:Key="TabStripBackgroundBrush" Color="{DynamicResource TabStripBackgroundColor}" />
+      <SolidColorBrush x:Key="TabSelectedBackgroundBrush" Color="{DynamicResource TabSelectedBackgroundColor}" />
+      <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="{DynamicResource SidebarBackgroundColor}" />
+      <SolidColorBrush x:Key="ControllerBodyBrush" Color="{DynamicResource ControllerBodyColor}" />
+      <SolidColorBrush x:Key="ControllerDetailBrush" Color="{DynamicResource ControllerDetailColor}" />
+      <SolidColorBrush x:Key="StickWellBrush" Color="{DynamicResource StickWellColor}" />
+
+      <!-- Qt keeps corners nearly square; anything rounder looks wrong next to it. -->
+      <CornerRadius x:Key="StandardCornerRadius">3</CornerRadius>
+      <Thickness x:Key="StandardBorderThickness">1</Thickness>
+
+      <!-- Segoe UI is the reference face on Windows; the others are cross-platform fallbacks. -->
+      <FontFamily x:Key="UiFontFamily">Segoe UI, Inter, Noto Sans, sans-serif</FontFamily>
+      <x:Double x:Key="FontSizeSmall">11</x:Double>
+      <x:Double x:Key="FontSizeNormal">12</x:Double>
+      <x:Double x:Key="FontSizeMedium">13</x:Double>
+      <x:Double x:Key="FontSizeLarge">15</x:Double>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+</Styles>

@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+             xmlns:loc="clr-namespace:UniPad.App.Localization"
+             mc:Ignorable="d"
+             d:DesignWidth="80" d:DesignHeight="24"
+             x:Class="UniPad.App.Views.Controls.BindButtonView"
+             x:DataType="vm:BindButtonViewModel">
+
+  <!--
+    A single bind button. Left click captures, right click opens the option menu, middle click
+    clears - matching the interaction model users already know from yuzu.
+  -->
+  <Button x:Name="PART_Button"
+          Classes="bind"
+          Content="{Binding DisplayText}"
+          Command="{Binding BeginCaptureCommand}"
+          PointerReleased="OnPointerReleased"
+          ToolTip.Tip="{Binding DisplayText}">
+
+    <Button.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="{Binding Text[menu.clear], Source={x:Static loc:Strings.Instance}}"
+                  Command="{Binding ClearCommand}" />
+        <Separator />
+        <MenuItem Header="{Binding Text[menu.invertAxis], Source={x:Static loc:Strings.Instance}}"
+                  Command="{Binding ToggleInvertCommand}"
+                  IsEnabled="{Binding SupportsInvert}" />
+        <MenuItem Header="{Binding Text[menu.toggle], Source={x:Static loc:Strings.Instance}}"
+                  Command="{Binding ToggleLatchCommand}" />
+        <MenuItem Header="{Binding Text[menu.setThreshold], Source={x:Static loc:Strings.Instance}}"
+                  Command="{Binding CycleThresholdCommand}"
+                  IsEnabled="{Binding SupportsInvert}" />
+      </ContextMenu>
+    </Button.ContextMenu>
+  </Button>
+</UserControl>

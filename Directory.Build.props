@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    Shared build settings for every UniPad project.
+    Keeping these central makes it trivial to flip language version or analyser
+    strictness for the whole solution at once.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>13.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Version>1.0.0</Version>
+    <Company>UniPad</Company>
+    <Product>UniPad</Product>
+    <Copyright>Copyright (c) 2026 UniPad contributors</Copyright>
+    <!--
+      NU1701: some Nefarius packages target netstandard2.0 - that is fine on net9.0.
+      CA1416: platform-specific API usage is guarded manually; we ship Windows-only features.
+    -->
+    <NoWarn>$(NoWarn);NU1701;CA1416</NoWarn>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+</Project>

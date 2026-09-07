@@ -1,0 +1,17 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+        xmlns:ctl="clr-namespace:UniPad.App.Views.Controls">
+
+  <!--
+    Keyed template retained for any call site that needs to reference it explicitly via
+    {StaticResource BindButtonTemplate}. The implicit, type-matched template that actually
+    drives rendering lives in App.axaml under Application.DataTemplates.
+  -->
+  <Styles.Resources>
+    <DataTemplate x:Key="BindButtonTemplate" DataType="vm:BindButtonViewModel">
+      <ctl:BindButtonView />
+    </DataTemplate>
+  </Styles.Resources>
+
+</Styles>
