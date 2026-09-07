@@ -134,7 +134,7 @@ input twice. Fix: install **HidHide** (Advanced tab → Install) and tick
 Requires the **[.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)** on Windows.
 
 ```cmd
-git clone https://github.com/YOUR-USERNAME/UniPad.git
+git clone https://github.com/UniPad-app/UniPad.git
 cd UniPad
 dotnet build UniPad.sln -c Release
 ```
