@@ -159,10 +159,10 @@
 
         <ctl:ControllerPreview Grid.Row="0"
                                x:Name="PART_ControllerPreview"
-                               MinHeight="180"
+                               MinHeight="200"
                                BodyBrush="{DynamicResource ControllerBodyBrush}"
                                DetailBrush="{DynamicResource ControllerDetailBrush}"
-                               HighlightBrush="{DynamicResource AccentBrush}"
+                               HighlightBrush="#FF8C1A"
                                OutlineBrush="{DynamicResource BorderStrongBrush}" />
 
         <!-- Stick position dots with live dead zone rings. -->
