@@ -49,14 +49,35 @@
     </StackPanel>
 
     <!-- ============ Sidebar + tabs ============ -->
-    <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="8">
+    <!--
+      Two rows: row 0 is exactly as tall as one tab header, row 1 holds the framed panels. The
+      TabControl spans both rows (its own template draws the strip in row 0 and the frame in
+      row 1), so the sidebar frame and the Advanced/About frames line up with the tab frame
+      without a single hard-coded pixel offset.
+    -->
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*" RowDefinitions="Auto,*" Margin="8">
 
-      <ListBox Grid.Column="0" Classes="sidebar" Width="92" Margin="0,0,6,0"
-               SelectedIndex="0">
+      <!-- Invisible strut: same border, padding and font metrics as a TabItem header. -->
+      <Border Grid.Row="0" Grid.Column="0"
+              BorderThickness="1,1,1,0"
+              BorderBrush="Transparent"
+              Padding="12,5">
+        <TextBlock Text=" " FontSize="{DynamicResource FontSizeNormal}" />
+      </Border>
+
+      <!-- Spans both rows so its frame matches the TabControl as a whole, strip included. -->
+      <ListBox Grid.Row="0" Grid.Column="0" Grid.RowSpan="2"
+               Classes="sidebar" Width="92" Margin="0,0,6,.5"
+               SelectedIndex="{Binding SelectedCategoryIndex}">
         <ListBoxItem Content="{Binding Text[nav.controls], Source={x:Static loc:Strings.Instance}}" />
+        <ListBoxItem Content="{Binding Text[tab.advanced], Source={x:Static loc:Strings.Instance}}" />
+        <ListBoxItem Content="{Binding Text[nav.about], Source={x:Static loc:Strings.Instance}}" />
       </ListBox>
 
-      <TabControl Grid.Column="1" SelectedIndex="{Binding SelectedTabIndex}"
+      <!-- Controls category: the eight player tabs. -->
+      <TabControl Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                  IsVisible="{Binding IsControlsCategory}"
+                  SelectedIndex="{Binding SelectedTabIndex}"
                   ItemsSource="{Binding AllTabs}">
         <TabControl.ItemTemplate>
           <DataTemplate DataType="vm:TabDescriptor">
@@ -69,6 +90,17 @@
           </DataTemplate>
         </TabControl.ContentTemplate>
       </TabControl>
+
+      <!-- Advanced and About: plain framed panels, no tab header of their own. -->
+      <Border Grid.Row="1" Grid.Column="1" Classes="categoryFrame"
+              IsVisible="{Binding IsAdvancedCategory}">
+        <ContentControl Content="{Binding Advanced}" />
+      </Border>
+
+      <Border Grid.Row="1" Grid.Column="1" Classes="categoryFrame"
+              IsVisible="{Binding IsAboutCategory}">
+        <ContentControl Content="{Binding About}" />
+      </Border>
     </Grid>
 
     <!-- ============ Status strip ============ -->

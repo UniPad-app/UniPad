@@ -6,6 +6,16 @@
     flat fills and a group box whose caption sits on the border line.
   -->
 
+    <!--
+    Resources local to this sheet. The tab outline colour lives here rather than in the palette
+    because it is deliberately fixed: the boxed selection must read the same in both theme
+    variants. The two Fluent overrides below neutralise the theme's own selection marker, which
+    is drawn from the operating system accent colour.
+  -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="TabSelectedOutlineBrush" Color="#FF8C1A" />
+  </Styles.Resources>
+
   <!-- ============ Window ============ -->
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
@@ -199,38 +209,132 @@
     <Setter Property="Height" Value="12" />
   </Style>
 
-  <!-- ============ TabControl (yuzu's flat tab strip) ============ -->
+  <!-- ============ TabControl (flat strip with a boxed selection) ============ -->
+
+  <!--
+    The frame around the content is pulled up by one pixel so its top edge lands on the strip's
+    last pixel row, which is what makes the orange line sit flush against the tabs. The negative
+    margin is on the frame, never on a tab: the strip lives in an Auto row, so shifting a tab
+    shrinks the row and drags the frame along with it, cancelling the overlap out.
+
+    Render order is set by declaration order, so the frame is declared before the strip and the
+    tabs paint over it.
+  -->
   <Style Selector="TabControl">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid RowDefinitions="Auto,*">
+
+          <!--
+            No negative margin here. The frame fills its slot exactly, so its bottom edge stays
+            aligned with the panels beside it; pulling it upwards instead pushed one pixel past
+            the slot and that pixel was clipped.
+          -->
+          <Border Grid.Row="1"
+                  Margin="0,-3,0,0"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{DynamicResource TabSelectedOutlineBrush}"
+                  BorderThickness="1"
+                  CornerRadius="0,3,3,3">
+            <ContentPresenter Name="PART_SelectedContentHost"
+                              Margin="4"
+                              Content="{TemplateBinding SelectedContent}"
+                              ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+          </Border>
+
+          <!--
+            The whole strip is measured one pixel short, so the Auto row shrinks uniformly and the
+            tabs arrange one pixel into the row below - their last pixel row lands exactly on the
+            frame's top edge.
+
+            The shift has to happen here rather than on a TabItem. A negative margin on a single
+            tab reduces that tab's desired height, the Auto row shrinks with it and the frame
+            follows, which cancels the overlap out entirely.
+
+            Declared after the frame, so the strip paints over it and the grey fill of the active
+            tab lands on top of the orange line.
+          -->
+          <ItemsPresenter Grid.Row="0"
+                          Name="PART_ItemsPresenter"
+                          Margin="0,0,0,-1"
+                          ItemsPanel="{TemplateBinding ItemsPanel}" />
+
+        </Grid>
+      </ControlTemplate>
+    </Setter>
   </Style>
 
+  <!--
+    Each tab is opaque and covers the pixel row the frame's top edge occupies. An inactive tab then
+    redraws that row in orange itself, through PART_BottomLine; the active tab leaves it alone, so
+    the frame appears to open into the tab. Nothing has to be overlapped or hidden.
+  -->
   <Style Selector="TabItem">
-    <Setter Property="Background" Value="{DynamicResource TabStripBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource FontSizeNormal}" />
     <Setter Property="Padding" Value="12,5" />
     <Setter Property="MinHeight" Value="26" />
     <Setter Property="Margin" Value="0,0,1,0" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-    <Setter Property="BorderThickness" Value="1,1,1,0" />
-    <Setter Property="CornerRadius" Value="3,3,0,0" />
-  </Style>
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <Border Name="PART_LayoutRoot"
+                  Background="{DynamicResource TabStripBackgroundBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}"
+                  BorderThickness="1,1,1,0"
+                  CornerRadius="3,3,0,0">
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}"
+                              Foreground="{TemplateBinding Foreground}"
+                              Margin="{TemplateBinding Padding}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+          </Border>
 
-  <Style Selector="TabItem:selected">
-    <Setter Property="Background" Value="{DynamicResource TabSelectedBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+          <!-- Continues the frame's top edge across an inactive tab. -->
+          <Border Name="PART_BottomLine"
+                  Height="1"
+                  VerticalAlignment="Bottom"
+                  Background="{DynamicResource TabSelectedOutlineBrush}" />
+        </Panel>
+      </ControlTemplate>
+    </Setter>
   </Style>
 
   <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
     <Setter Property="Background" Value="{DynamicResource TabSelectedBackgroundBrush}" />
   </Style>
 
+  <!-- Selected: orange box, open at the bottom. -->
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TabItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TabSelectedOutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1,1,1,0" />
+  </Style>
+
+  <Style Selector="TabItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TabSelectedOutlineBrush}" />
+  </Style>
+
+  <Style Selector="TabItem:selected /template/ Border#PART_BottomLine">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
   <!-- ============ ListBox (settings sidebar) ============ -->
+  <!-- Same orange frame and radius as the tab content frame so the two boxes read as a pair. -->
   <Style Selector="ListBox.sidebar">
     <Setter Property="Background" Value="{DynamicResource SidebarBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TabSelectedOutlineBrush}" />
     <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="0" />
   </Style>
 
@@ -241,9 +345,28 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
+  <Style Selector="ListBox.sidebar ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
   <Style Selector="ListBox.sidebar ListBoxItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TabSelectedOutlineBrush}" />
     <Setter Property="TextBlock.Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar ListBoxItem:selected:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource TabSelectedOutlineBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="White" />
+  </Style>
+
+  <!-- Frame for the sidebar categories that have no tab strip of their own. -->
+  <Style Selector="Border.categoryFrame">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TabSelectedOutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="4" />
   </Style>
 
   <!-- ============ Separator / status bar ============ -->

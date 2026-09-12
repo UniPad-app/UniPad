@@ -20,6 +20,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private int _selectedTabIndex;
 
+    /// <summary>
+    /// Selected entry in the left-hand category sidebar: 0 = Controls (the player tabs),
+    /// 1 = Advanced, 2 = About. Advanced and About used to be tabs; they are categories now.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsControlsCategory))]
+    [NotifyPropertyChangedFor(nameof(IsAdvancedCategory))]
+    [NotifyPropertyChangedFor(nameof(IsAboutCategory))]
+    private int _selectedCategoryIndex;
+
     [ObservableProperty]
     private string _statusText = string.Empty;
 
@@ -62,9 +72,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             AllTabs.Add(new TabDescriptor(player.Header, player));
         }
 
-        AllTabs.Add(new TabDescriptor(Strings.Get("tab.advanced"), Advanced));
-        AllTabs.Add(new TabDescriptor(Strings.Get("nav.about"), About));
-
         // Tab headers are plain strings captured at construction time, so they have to be rebuilt
         // when the user switches language.
         Strings.Instance.LanguageChanged += RebuildTabHeaders;
@@ -94,6 +101,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>Every tab shown in the strip: the eight players followed by Advanced.</summary>
     public ObservableCollection<TabDescriptor> AllTabs { get; } = [];
 
+        /// <summary>True while the Controls category is selected, so the player tab strip is shown.</summary>
+    public bool IsControlsCategory => SelectedCategoryIndex == 0;
+
+    /// <summary>True while the Advanced category is selected.</summary>
+    public bool IsAdvancedCategory => SelectedCategoryIndex == 1;
+
+    /// <summary>True while the About category is selected.</summary>
+    public bool IsAboutCategory => SelectedCategoryIndex == 2;
+
     /// <summary>Available profile names.</summary>
     public ObservableCollection<string> Profiles { get; } = [];
 
@@ -118,8 +134,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     public void OnUiTick()
     {
-        // Only the visible player tab needs preview updates.
-        if ((uint)SelectedTabIndex < (uint)Players.Count)
+        // Only the visible player tab needs preview updates, and only while Controls is selected.
+        if (IsControlsCategory && (uint)SelectedTabIndex < (uint)Players.Count)
         {
             Players[SelectedTabIndex].UpdateLivePreview();
         }
@@ -129,8 +145,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             _diagnosticsTickCounter = 0;
 
-            // The Advanced tab sits immediately after the player tabs; About needs no live data.
-            if (SelectedTabIndex == Players.Count)
+            // Advanced is a sidebar category now; About needs no live data.
+            if (IsAdvancedCategory)
             {
                 Advanced.UpdateDiagnostics();
             }
@@ -168,9 +184,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             AllTabs.Add(new TabDescriptor(player.Header, player));
         }
-
-        AllTabs.Add(new TabDescriptor(Strings.Get("tab.advanced"), Advanced));
-        AllTabs.Add(new TabDescriptor(Strings.Get("nav.about"), About));
 
         SelectedTabIndex = Math.Clamp(selected, 0, AllTabs.Count - 1);
         UpdateConnectedSummary();
