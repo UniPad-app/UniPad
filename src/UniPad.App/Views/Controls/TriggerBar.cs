@@ -80,6 +80,6 @@ public sealed class TriggerBar : Control
         // Fills upward from the bottom, matching the physical motion of a trigger.
         var fillHeight = (height - 2) * fraction;
         var fillRect = new Rect(1, height - 1 - fillHeight, width - 2, fillHeight);
-        context.DrawRectangle(FillBrush ?? Brushes.DodgerBlue, null, fillRect, 1, 1);
+        context.DrawRectangle(FillBrush ?? new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x1A)), null, fillRect, 1, 1);
     }
 }

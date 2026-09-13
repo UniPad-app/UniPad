@@ -113,7 +113,7 @@ public sealed class AnalogStickPreview : Control
 
         var outline = OutlineBrush ?? Brushes.Gray;
         var well = WellBrush ?? Brushes.Transparent;
-        var dot = DotBrush ?? Brushes.DodgerBlue;
+        var dot = DotBrush ?? new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x1A));
 
         // Well and travel circle.
         context.DrawEllipse(well, new Pen(outline, 1), centre, radius, radius);

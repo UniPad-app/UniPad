@@ -6,11 +6,11 @@
     flat fills and a group box whose caption sits on the border line.
   -->
 
-    <!--
+  <!--
     Resources local to this sheet. The tab outline colour lives here rather than in the palette
     because it is deliberately fixed: the boxed selection must read the same in both theme
-    variants. The two Fluent overrides below neutralise the theme's own selection marker, which
-    is drawn from the operating system accent colour.
+    variants. Fluent's accent-coloured selection marker is not overridden but gone entirely - the
+    TabControl and TabItem templates below are rewritten, so the pipe is never created.
   -->
   <Styles.Resources>
     <SolidColorBrush x:Key="TabSelectedOutlineBrush" Color="#FF8C1A" />
@@ -73,13 +73,14 @@
   </Style>
 
   <Style Selector="Button:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
   <Style Selector="Button:pressed /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
     <Setter Property="TextBlock.Foreground" Value="White" />
   </Style>
 
@@ -212,13 +213,18 @@
   <!-- ============ TabControl (flat strip with a boxed selection) ============ -->
 
   <!--
-    The frame around the content is pulled up by one pixel so its top edge lands on the strip's
-    last pixel row, which is what makes the orange line sit flush against the tabs. The negative
-    margin is on the frame, never on a tab: the strip lives in an Auto row, so shifting a tab
-    shrinks the row and drags the frame along with it, cancelling the overlap out.
+    Two offsets cooperate here, and both are deliberate.
 
-    Render order is set by declaration order, so the frame is declared before the strip and the
-    tabs paint over it.
+    The frame is pulled up three pixels with a top-only margin, so it grows upwards while its
+    bottom edge stays inside the slot - that is what keeps it level with the sidebar and the
+    Advanced and About panels. The rows it gains are hidden behind the opaque tabs, which leaves
+    the orange line flush against them.
+
+    Neither offset may sit on a TabItem. The strip lives in an Auto row, so shrinking a single tab
+    shrinks the row and drags the frame up with it, cancelling the overlap out.
+
+    Render order follows declaration order, so the frame is declared before the strip and the tabs
+    paint over it.
   -->
   <Style Selector="TabControl">
     <Setter Property="Background" Value="Transparent" />
@@ -228,9 +234,9 @@
         <Grid RowDefinitions="Auto,*">
 
           <!--
-            No negative margin here. The frame fills its slot exactly, so its bottom edge stays
-            aligned with the panels beside it; pulling it upwards instead pushed one pixel past
-            the slot and that pixel was clipped.
+            Top-only margin: the frame grows three pixels above its slot while its bottom edge
+            stays put, level with the sidebar and the category panels. A bottom margin here would
+            move that edge instead and break the alignment.
           -->
           <Border Grid.Row="1"
                   Margin="0,-3,0,0"
@@ -267,7 +273,7 @@
   </Style>
 
   <!--
-    Each tab is opaque and covers the pixel row the frame's top edge occupies. An inactive tab then
+    Each tab is opaque and covers the frame's top edge wherever the two overlap. An inactive tab then
     redraws that row in orange itself, through PART_BottomLine; the active tab leaves it alone, so
     the frame appears to open into the tab. Nothing has to be overlapped or hidden.
   -->

@@ -6,7 +6,8 @@
     Application.RequestedThemeVariant, with no code touching individual controls.
 
     The dark values reproduce the Qt Fusion Dark palette that yuzu shipped with, which is what
-    makes the result feel familiar to anyone who configured controllers there.
+    makes the result feel familiar to anyone who configured controllers there. The accent is our
+    own orange in both variants, never the operating system's.
   -->
   <Styles.Resources>
     <ResourceDictionary>
@@ -22,9 +23,9 @@
           <Color x:Key="TextPrimaryColor">#E8E8E8</Color>
           <Color x:Key="TextSecondaryColor">#B4B4B4</Color>
           <Color x:Key="TextDisabledColor">#7A7A7A</Color>
-          <Color x:Key="AccentColor">#2A82DA</Color>
-          <Color x:Key="AccentHoverColor">#3A92EA</Color>
-          <Color x:Key="AccentPressedColor">#1A72CA</Color>
+          <Color x:Key="AccentColor">#FF8C1A</Color>
+          <Color x:Key="AccentHoverColor">#FFA347</Color>
+          <Color x:Key="AccentPressedColor">#E07000</Color>
           <Color x:Key="CaptureColor">#E5A00D</Color>
           <Color x:Key="SuccessColor">#4CAF50</Color>
           <Color x:Key="WarningColor">#FF9800</Color>
@@ -47,9 +48,9 @@
           <Color x:Key="TextPrimaryColor">#1E1E1E</Color>
           <Color x:Key="TextSecondaryColor">#4A4A4A</Color>
           <Color x:Key="TextDisabledColor">#9A9A9A</Color>
-          <Color x:Key="AccentColor">#1A6FBE</Color>
-          <Color x:Key="AccentHoverColor">#2A82DA</Color>
-          <Color x:Key="AccentPressedColor">#0F5A9E</Color>
+          <Color x:Key="AccentColor">#E07000</Color>
+          <Color x:Key="AccentHoverColor">#FF8C1A</Color>
+          <Color x:Key="AccentPressedColor">#B35A00</Color>
           <Color x:Key="CaptureColor">#D18700</Color>
           <Color x:Key="SuccessColor">#2E7D32</Color>
           <Color x:Key="WarningColor">#E65100</Color>
@@ -76,6 +77,9 @@
       <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
       <SolidColorBrush x:Key="AccentHoverBrush" Color="{DynamicResource AccentHoverColor}" />
       <SolidColorBrush x:Key="AccentPressedBrush" Color="{DynamicResource AccentPressedColor}" />
+      <!-- Translucent accent for hover fills, so a pointer-over tint reads as the same orange
+        without competing with the solid accent used for pressed and selected states. -->
+      <SolidColorBrush x:Key="AccentSoftBrush" Color="{DynamicResource AccentColor}" Opacity="0.18" />
       <SolidColorBrush x:Key="CaptureBrush" Color="{DynamicResource CaptureColor}" />
       <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}" />
       <SolidColorBrush x:Key="WarningBrush" Color="{DynamicResource WarningColor}" />

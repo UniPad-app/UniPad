@@ -30,8 +30,14 @@
 
   <Application.Styles>
     <!-- Fluent supplies the base control templates; our own styles then reshape them into the
-         flatter, squarer Qt Widgets look. -->
-    <FluentTheme />
+         flatter, squarer Qt Widgets look. The palettes below pin the accent colour per variant so
+         nothing in the interface follows the Windows accent colour any more. -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#FF8C1A" />
+        <ColorPaletteResources x:Key="Light" Accent="#E07000" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://UniPad/Styles/Palette.axaml" />
     <StyleInclude Source="avares://UniPad/Styles/Controls.axaml" />
     <StyleInclude Source="avares://UniPad/Views/Controls/BindButtonTemplate.axaml" />
