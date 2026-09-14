@@ -11,13 +11,19 @@
              x:DataType="vm:PlayerConfigViewModel">
 
   <!--
-    Layout mirrors yuzu's configure_input_player dialog: a header row with device and profile
-    pickers, then a three-column body with stick groups on the left, the live controller diagram in
-    the middle and button groups on the right, and finally an options and action row.
-  -->
-  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="6">
+    Header row with the device and output pickers, then a body laid out as a shoulder and system
+    strip across the top and three columns beneath it: left stick and D-Pad on the left, the live
+    diagram in the middle, face buttons and the right stick on the right. Options and actions share
+    the final row.
 
-    <!-- ============ Header: connect toggle, device, profile ============ -->
+    Every group box in a side column repeats the same "26,*,26,*" column scheme: a fixed-width
+    label cell followed by a stretching bind cell, twice over. Because the widths are fixed rather
+    than content-sized, the bind buttons of Shoulders, Face Buttons, the stick groups and the D-Pad
+    all land on the same two vertical lines even though they live in separate boxes.
+  -->
+  <Grid RowDefinitions="Auto,*,Auto" Margin="6">
+
+    <!-- ============ Header: connect toggle, device, output type ============ -->
     <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
       <CheckBox Grid.Column="0"
                 IsChecked="{Binding IsEnabled}"
@@ -48,39 +54,79 @@
       </HeaderedContentControl>
     </Grid>
 
-    <!-- ============ Body: sticks | diagram | buttons ============ -->
-    <Grid Grid.Row="1" ColumnDefinitions="230,*,250">
+    <!-- ============ Body: shoulder strip, then sticks | diagram | buttons ============ -->
+    <Grid Grid.Row="1" ColumnDefinitions="228,*,228" RowDefinitions="Auto,*">
 
-      <!-- ==== Left column: both analogue sticks ==== -->
-      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+      <!--
+        Top strip. All three boxes sit in the same Auto row and stretch vertically, so the row
+        takes the height of the tallest one and the other two grow to match it. Their inner grids
+        carry identical margins, which is what keeps the bind buttons on one line across the strip.
+      -->
+      <HeaderedContentControl Grid.Row="0" Grid.Column="0" Classes="groupBox"
+                              VerticalAlignment="Stretch"
+                              Header="{Binding Text[group.shouldersL], Source={x:Static loc:Strings.Instance}}">
+        <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0" Text="LB" Margin="2,0,4,0" />
+          <ContentControl Grid.Column="1" Content="{Binding BindLeftBumper}" Margin="1" />
+          <TextBlock Grid.Column="2" Text="LT" Margin="6,0,4,0" />
+          <ContentControl Grid.Column="3" Content="{Binding BindLeftTrigger}" Margin="1" />
+        </Grid>
+      </HeaderedContentControl>
+
+      <HeaderedContentControl Grid.Row="0" Grid.Column="1" Classes="groupBox" MinHeight="45"
+                              VerticalAlignment="Stretch"
+                              Header="{Binding Text[group.misc], Source={x:Static loc:Strings.Instance}}">
+        <Grid ColumnDefinitions="34,*,40,*,34,*" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0" Text="Back" Margin="2,0,4,0" />
+          <ContentControl Grid.Column="1" Content="{Binding BindBack}" Margin="1" />
+          <TextBlock Grid.Column="2" Text="Guide" Margin="8,0,4,0" />
+          <ContentControl Grid.Column="3" Content="{Binding BindGuide}" Margin="1" />
+          <TextBlock Grid.Column="4" Text="Start" Margin="8,0,4,0" />
+          <ContentControl Grid.Column="5" Content="{Binding BindStart}" Margin="1" />
+        </Grid>
+      </HeaderedContentControl>
+
+      <HeaderedContentControl Grid.Row="0" Grid.Column="2" Classes="groupBox"
+                              VerticalAlignment="Stretch"
+                              Header="{Binding Text[group.shouldersR], Source={x:Static loc:Strings.Instance}}">
+        <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0" Text="RB" Margin="2,0,4,0" />
+          <ContentControl Grid.Column="1" Content="{Binding BindRightBumper}" Margin="1" />
+          <TextBlock Grid.Column="2" Text="RT" Margin="6,0,4,0" />
+          <ContentControl Grid.Column="3" Content="{Binding BindRightTrigger}" Margin="1" />
+        </Grid>
+      </HeaderedContentControl>
+
+      <!-- ==== Left column: left stick, then the D-Pad ==== -->
+      <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
         <StackPanel Spacing="2">
 
           <HeaderedContentControl Classes="groupBox"
                                   Header="{Binding Text[group.leftStick], Source={x:Static loc:Strings.Instance}}">
             <StackPanel Spacing="3">
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel"
+              <!-- Labels sit above their bind cells, but in the same two stretching columns the
+                   shoulder box uses, so nothing drifts sideways between the boxes. -->
+              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="0" Content="{Binding BindLStickUp}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLStickDown}" Margin="1" />
+                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLStickUp}" Margin="1" />
+                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindLStickDown}" Margin="1" />
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Classes="groupLabel"
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="3" Grid.Column="0" Content="{Binding BindLStickLeft}" Margin="1" />
-                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindLStickRight}" Margin="1" />
-              </Grid>
+                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindLStickLeft}" Margin="1" />
+                <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindLStickRight}" Margin="1" />
 
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel"
+                <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="0" Content="{Binding BindLStickPress}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLStickModifier}" Margin="1" />
+                <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindLStickPress}" Margin="1" />
+                <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindLStickModifier}" Margin="1" />
               </Grid>
 
               <StackPanel Spacing="1">
@@ -104,31 +150,116 @@
           </HeaderedContentControl>
 
           <HeaderedContentControl Classes="groupBox"
+                                  Header="{Binding Text[group.dpad], Source={x:Static loc:Strings.Instance}}">
+            <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
+              <TextBlock Grid.Row="0" Grid.Column="0" Margin="2,0,4,0"
+                         Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
+              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindDPadLeft}" Margin="1" />
+              <TextBlock Grid.Row="0" Grid.Column="2" Margin="6,0,4,0"
+                         Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
+              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindDPadUp}" Margin="1" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Margin="2,0,4,0"
+                         Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
+              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindDPadDown}" Margin="1" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Margin="6,0,4,0"
+                         Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
+              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindDPadRight}" Margin="1" />
+            </Grid>
+          </HeaderedContentControl>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ==== Middle column: diagram, stick dots, device summary ==== -->
+      <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="*,Auto,Auto,Auto" Margin="4,2,4,0">
+
+        <ctl:ControllerPreview Grid.Row="0"
+                               x:Name="PART_ControllerPreview"
+                               MinHeight="200"
+                               BodyBrush="{DynamicResource ControllerBodyBrush}"
+                               DetailBrush="{DynamicResource ControllerDetailBrush}"
+                               HighlightBrush="#FF8C1A"
+                               OutlineBrush="{DynamicResource BorderStrongBrush}" />
+
+        <!-- Stick position dots with live dead zone rings. -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,*" Margin="0,4">
+          <StackPanel Grid.Column="1" Spacing="2" Margin="6,0">
+            <ctl:AnalogStickPreview Width="86" Height="86"
+                                    ValueX="{Binding LeftStickX}"
+                                    ValueY="{Binding LeftStickY}"
+                                    Deadzone="{Binding LeftDeadzone}"
+                                    Range="{Binding LeftRange}"
+                                    DotBrush="{DynamicResource AccentBrush}"
+                                    OutlineBrush="{DynamicResource BorderStrongBrush}" />
+            <TextBlock Classes="caption" HorizontalAlignment="Center"
+                       Text="{Binding Text[group.leftStick], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Spacing="2" Margin="6,0">
+            <ctl:AnalogStickPreview Width="86" Height="86"
+                                    ValueX="{Binding RightStickX}"
+                                    ValueY="{Binding RightStickY}"
+                                    Deadzone="{Binding RightDeadzone}"
+                                    Range="{Binding RightRange}"
+                                    DotBrush="{DynamicResource AccentBrush}"
+                                    OutlineBrush="{DynamicResource BorderStrongBrush}" />
+            <TextBlock Classes="caption" HorizontalAlignment="Center"
+                       Text="{Binding Text[group.rightStick], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                    HorizontalAlignment="Center" Margin="0,0,0,2">
+          <TextBlock Classes="caption" Text="{Binding DeviceStatus}" />
+          <TextBlock Classes="caption" Text="{Binding SlotStatus}"
+                     Foreground="{DynamicResource AccentBrush}" />
+        </StackPanel>
+      </Grid>
+
+      <!-- ==== Right column: face buttons, then the right stick ==== -->
+      <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
+        <StackPanel Spacing="2">
+
+          <HeaderedContentControl Classes="groupBox"
+                                  Header="{Binding Text[group.faceButtons], Source={x:Static loc:Strings.Instance}}">
+            <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="X" Margin="2,0,4,0" />
+              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindX}" Margin="1" />
+              <TextBlock Grid.Row="0" Grid.Column="2" Text="A" Margin="6,0,4,0" />
+              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindA}" Margin="1" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Y" Margin="2,0,4,0" />
+              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindY}" Margin="1" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Text="B" Margin="6,0,4,0" />
+              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindB}" Margin="1" />
+            </Grid>
+          </HeaderedContentControl>
+
+          <HeaderedContentControl Classes="groupBox"
                                   Header="{Binding Text[group.rightStick], Source={x:Static loc:Strings.Instance}}">
             <StackPanel Spacing="3">
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel"
+              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="0" Content="{Binding BindRStickUp}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindRStickDown}" Margin="1" />
+                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindRStickUp}" Margin="1" />
+                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindRStickDown}" Margin="1" />
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Classes="groupLabel"
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="3" Grid.Column="0" Content="{Binding BindRStickLeft}" Margin="1" />
-                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindRStickRight}" Margin="1" />
-              </Grid>
+                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindRStickLeft}" Margin="1" />
+                <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindRStickRight}" Margin="1" />
 
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel"
+                <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel"
+                <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
                            Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="0" Content="{Binding BindRStickPress}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindRStickModifier}" Margin="1" />
+                <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindRStickPress}" Margin="1" />
+                <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindRStickModifier}" Margin="1" />
               </Grid>
 
               <StackPanel Spacing="1">
@@ -153,169 +284,48 @@
 
         </StackPanel>
       </ScrollViewer>
-
-      <!-- ==== Middle column: live controller diagram, stick dots and trigger bars ==== -->
-      <Grid Grid.Column="1" RowDefinitions="*,Auto,Auto" Margin="4">
-
-        <ctl:ControllerPreview Grid.Row="0"
-                               x:Name="PART_ControllerPreview"
-                               MinHeight="200"
-                               BodyBrush="{DynamicResource ControllerBodyBrush}"
-                               DetailBrush="{DynamicResource ControllerDetailBrush}"
-                               HighlightBrush="#FF8C1A"
-                               OutlineBrush="{DynamicResource BorderStrongBrush}" />
-
-        <!-- Stick position dots with live dead zone rings. -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,*" Margin="0,4">
-          <StackPanel Grid.Column="1" Spacing="2" Margin="6,0">
-            <ctl:AnalogStickPreview Width="86" Height="86"
-                                    ValueX="{Binding LeftStickX}"
-                                    ValueY="{Binding LeftStickY}"
-                                    Deadzone="{Binding LeftDeadzone}"
-                                    Range="{Binding LeftRange}"
-                                    DotBrush="{DynamicResource AccentBrush}"
-                                    OutlineBrush="{DynamicResource BorderStrongBrush}"
-                                    WellBrush="{DynamicResource StickWellBrush}" />
-            <TextBlock Classes="groupLabel"
-                       Text="{Binding Text[group.leftStick], Source={x:Static loc:Strings.Instance}}" />
-          </StackPanel>
-
-          <StackPanel Grid.Column="2" Spacing="2" Margin="6,0">
-            <ctl:AnalogStickPreview Width="86" Height="86"
-                                    ValueX="{Binding RightStickX}"
-                                    ValueY="{Binding RightStickY}"
-                                    Deadzone="{Binding RightDeadzone}"
-                                    Range="{Binding RightRange}"
-                                    DotBrush="{DynamicResource AccentBrush}"
-                                    OutlineBrush="{DynamicResource BorderStrongBrush}"
-                                    WellBrush="{DynamicResource StickWellBrush}" />
-            <TextBlock Classes="groupLabel"
-                       Text="{Binding Text[group.rightStick], Source={x:Static loc:Strings.Instance}}" />
-          </StackPanel>
-        </Grid>
-
-        <!-- Device status line -->
-        <StackPanel Grid.Row="2" Spacing="1">
-          <TextBlock Classes="caption" Text="{Binding DeviceStatus}" TextWrapping="Wrap" />
-          <TextBlock Classes="caption" Text="{Binding SlotStatus}" Foreground="{DynamicResource SuccessBrush}" />
-          <TextBlock Classes="caption"
-                     IsVisible="{Binding IsBeyondXInputLimit}"
-                     Foreground="{DynamicResource WarningBrush}"
-                     TextWrapping="Wrap"
-                     Text="{Binding Text[msg.xinputLimit], Source={x:Static loc:Strings.Instance}}" />
-        </StackPanel>
-      </Grid>
-
-      <!-- ==== Right column: buttons, D-Pad, triggers, misc ==== -->
-      <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="2">
-
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.faceButtons], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="X" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindX}" Margin="1" />
-              <TextBlock Grid.Row="0" Grid.Column="2" Text="A" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindA}" Margin="1" />
-
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Y" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindY}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Text="B" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindB}" Margin="1" />
-            </Grid>
-          </HeaderedContentControl>
-
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.dpad], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Margin="2,0,4,0"
-                         Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindDPadLeft}" Margin="1" />
-              <TextBlock Grid.Row="0" Grid.Column="2" Margin="6,0,4,0"
-                         Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindDPadUp}" Margin="1" />
-
-              <TextBlock Grid.Row="1" Grid.Column="0" Margin="2,0,4,0"
-                         Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindDPadDown}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Margin="6,0,4,0"
-                         Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindDPadRight}" Margin="1" />
-            </Grid>
-          </HeaderedContentControl>
-
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.shoulders], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="LB" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindLeftBumper}" Margin="1" />
-              <TextBlock Grid.Row="0" Grid.Column="2" Text="RB" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindRightBumper}" Margin="1" />
-
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="LT" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLeftTrigger}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Text="RT" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindRightTrigger}" Margin="1" />
-
-              <!-- Live trigger fill bars sit beside the bindings for immediate feedback. -->
-              <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="4"
-                          Orientation="Horizontal" Spacing="3" Margin="6,0,0,0">
-                <ctl:TriggerBar Width="9" Height="42"
-                                Value="{Binding LeftTriggerFill}"
-                                FillBrush="{DynamicResource AccentBrush}"
-                                TrackBrush="{DynamicResource InputBackgroundBrush}"
-                                OutlineBrush="{DynamicResource BorderStrongBrush}" />
-                <ctl:TriggerBar Width="9" Height="42"
-                                Value="{Binding RightTriggerFill}"
-                                FillBrush="{DynamicResource AccentBrush}"
-                                TrackBrush="{DynamicResource InputBackgroundBrush}"
-                                OutlineBrush="{DynamicResource BorderStrongBrush}" />
-              </StackPanel>
-            </Grid>
-          </HeaderedContentControl>
-
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.misc], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Back" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindBack}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Start" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindStart}" Margin="1" />
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Guide" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="2" Grid.Column="1" Content="{Binding BindGuide}" Margin="1" />
-            </Grid>
-          </HeaderedContentControl>
-
-        </StackPanel>
-      </ScrollViewer>
+      
+      <!-- ============ Overlay: XInput limit message, centered in the whole panel ============ -->
+      <Border Grid.Row="0" Grid.RowSpan="2"
+              Grid.Column="0" Grid.ColumnSpan="3"
+              IsVisible="{Binding IsBeyondXInputLimit}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Margin="0,80,0,0"
+              Background="#CC1E1E1E"
+              CornerRadius="6"
+              Padding="6,8"
+              IsHitTestVisible="False">
+        <TextBlock Foreground="{DynamicResource WarningBrush}"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"
+                   MaxWidth="320"
+                   FontSize="12"
+                   Text="{Binding Text[msg.xinputLimit], Source={x:Static loc:Strings.Instance}}" />
+      </Border>
     </Grid>
 
-    <!-- ============ Options row ============ -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="2,6,2,4">
-      <CheckBox Grid.Column="0"
-                IsChecked="{Binding VibrationEnabled}"
-                Content="{Binding Text[opt.vibration], Source={x:Static loc:Strings.Instance}}"
-                Margin="0,0,12,0" />
+    <!-- ============ Actions on the left, per-player options on the right ============ -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+        <Button Classes="accent"
+                Command="{Binding AutoMapCommand}"
+                Content="{Binding Text[action.autoMap], Source={x:Static loc:Strings.Instance}}" />
+        <Button Command="{Binding ClearAllCommand}"
+                Content="{Binding Text[action.clearAll], Source={x:Static loc:Strings.Instance}}" />
+        <Button Command="{Binding RestoreDefaultsCommand}"
+                Content="{Binding Text[action.defaults], Source={x:Static loc:Strings.Instance}}" />
+        <Button Command="{Binding IdentifyCommand}"
+                Content="{Binding Text[action.identify], Source={x:Static loc:Strings.Instance}}" />
+      </StackPanel>
 
-      <CheckBox Grid.Column="1"
-                IsChecked="{Binding EmulateStickWithDpad}"
-                Content="{Binding Text[opt.emulateStick], Source={x:Static loc:Strings.Instance}}" />
-
-      <Button Grid.Column="3"
-              Command="{Binding IdentifyCommand}"
-              Content="{Binding Text[action.identify], Source={x:Static loc:Strings.Instance}}" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+        <CheckBox IsChecked="{Binding VibrationEnabled}"
+                  Content="{Binding Text[opt.vibration], Source={x:Static loc:Strings.Instance}}" />
+        <CheckBox IsChecked="{Binding EmulateStickWithDpad}"
+                  Content="{Binding Text[opt.emulateStick], Source={x:Static loc:Strings.Instance}}" />
+      </StackPanel>
     </Grid>
-
-    <!-- ============ Action row ============ -->
-    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" Margin="2,0,2,2">
-      <Button Classes="accent"
-              Command="{Binding AutoMapCommand}"
-              Content="{Binding Text[action.autoMap], Source={x:Static loc:Strings.Instance}}" />
-      <Button Command="{Binding ClearAllCommand}"
-              Content="{Binding Text[action.clearAll], Source={x:Static loc:Strings.Instance}}" />
-      <Button Command="{Binding RestoreDefaultsCommand}"
-              Content="{Binding Text[action.defaults], Source={x:Static loc:Strings.Instance}}" />
-    </StackPanel>
 
   </Grid>
 </UserControl>

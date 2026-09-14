@@ -109,6 +109,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["group.dpad"] = "D-Pad",
         ["group.faceButtons"] = "Face Buttons",
         ["group.shoulders"] = "Shoulders",
+        ["group.shouldersL"] = "Shoulder L",
+        ["group.shouldersR"] = "Shoulder R",
         ["group.triggers"] = "Triggers",
         ["group.misc"] = "Misc",
 
@@ -231,6 +233,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["group.dpad"] = "دی‌پد",
         ["group.faceButtons"] = "دکمه‌های اصلی",
         ["group.shoulders"] = "دکمه‌های شانه",
+        ["group.shouldersL"] = "شانه چپ",
+        ["group.shouldersR"] = "شانه راست",
         ["group.triggers"] = "ماشه‌ها",
         ["group.misc"] = "متفرقه",
 
