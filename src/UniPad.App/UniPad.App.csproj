@@ -4,9 +4,10 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>UniPad.App</RootNamespace>
     <AssemblyName>UniPad</AssemblyName>
-    <!-- Embeds the Win32 icon resource in UniPad.exe itself. Without this the assets folder only
-      supplies the window and tray icons, and Explorer shows the generic executable icon. -->
-    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Embeds the Win32 icon resource in UniPad.exe itself, so Explorer, the taskbar and Alt+Tab
+      all show the real icon. The same file is picked up by the Assets glob below and reused as
+      the window icon; the notification area uses the smaller Assets\tray.png instead. -->
+    <ApplicationIcon>Assets\tray.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

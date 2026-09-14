@@ -10,7 +10,7 @@
         x:Class="UniPad.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Text[app.title], Source={x:Static loc:Strings.Instance}}"
-        Icon="/Assets/tray.ico"
+        Icon="/Assets/tray.png"
         Width="1024" Height="660"
         MinWidth="900" MinHeight="580"
         WindowStartupLocation="CenterScreen">

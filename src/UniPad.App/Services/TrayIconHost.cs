@@ -57,7 +57,9 @@ public sealed class TrayIconHost : IDisposable
     {
         try
         {
-            using var stream = AssetLoader.Open(new Uri("avares://UniPad/Assets/tray.ico"));
+            // A small PNG rather than the multi-size app.ico: the notification area asks for a
+            // 16 or 20 pixel bitmap, and downscaling the 256 pixel frame looks soft.
+            using var stream = AssetLoader.Open(new Uri("avares://UniPad/Assets/tray.png"));
             return new WindowIcon(stream);
         }
         catch (Exception ex)
