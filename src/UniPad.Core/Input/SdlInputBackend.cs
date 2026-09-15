@@ -31,7 +31,11 @@ public sealed unsafe class SdlInputBackend : IDisposable
     /// </summary>
     private readonly ConcurrentDictionary<uint, byte> _virtualInstanceIds = new();
 
-    /// <summary>GUIDs known to belong to virtual pads (broader net than instance ids).</summary>
+    /// <summary>
+    /// GUIDs explicitly marked as virtual. No longer populated automatically: a ViGEm pad reports
+    /// the same GUID as a genuine Xbox 360 controller, so learning GUIDs from a detection guess
+    /// used to blacklist the user's real hardware for the rest of the session.
+    /// </summary>
     private readonly ConcurrentDictionary<string, byte> _virtualGuids = new();
 
     private readonly object _sdlLock = new();
@@ -40,8 +44,21 @@ public sealed unsafe class SdlInputBackend : IDisposable
     private volatile bool _sdlReady;
     private volatile int _pollRateHz = 1000;
 
-    /// <summary>Set while a virtual pad is being plugged in, so arrivals are treated as ours.</summary>
-    private volatile bool _expectingVirtualDevice;
+    /// <summary>
+    /// Claim budget for the pad currently being connected. Exactly one device may be claimed per
+    /// Connect() scope, which is what stops a real controller arriving at the same moment from
+    /// being written off as ours.
+    /// </summary>
+    private int _virtualClaimRemaining;
+
+    /// <summary>Stopwatch timestamp after which the open claim expires.</summary>
+    private long _virtualClaimDeadline;
+
+    /// <summary>USB identity of the pad flavour we asked ViGEm for.</summary>
+    private volatile ushort _virtualClaimVendor;
+
+    /// <summary>USB product id of the pad flavour we asked ViGEm for.</summary>
+    private volatile ushort _virtualClaimProduct;
 
     private long _pollCount;
     private double _lastLoopMicroseconds;
@@ -56,8 +73,12 @@ public sealed unsafe class SdlInputBackend : IDisposable
     public IEnumerable<InputDevice> Devices =>
         _byDeviceId.Values.Where(d => d is { IsConnected: true, IsVirtual: false });
 
-    /// <summary>All tracked devices including virtual pads (diagnostics only).</summary>
-    public IEnumerable<InputDevice> AllDevices => _byDeviceId.Values;
+    /// <summary>
+    /// All tracked devices including virtual pads (diagnostics only). Virtual pads are kept out of
+    /// the id-keyed dictionary, so they are appended from the instance map instead.
+    /// </summary>
+    public IEnumerable<InputDevice> AllDevices =>
+        _byDeviceId.Values.Concat(_byInstanceId.Values.Where(d => d.IsVirtual));
 
     /// <summary>Target polling rate in Hz. Applied on the next loop iteration.</summary>
     public int PollRateHz
@@ -230,11 +251,6 @@ public sealed unsafe class SdlInputBackend : IDisposable
         var sdlId = (SDL_JoystickID)instanceId;
         var guidText = GetGuidString(sdlId);
         var name = SDL3.SDL_GetJoystickNameForID(sdlId) ?? "Unknown Device";
-        var isVirtualPad = _expectingVirtualDevice || _virtualGuids.ContainsKey(guidText);
-
-        // Allocate the lowest free port ordinal among devices sharing this GUID.
-        var port = AllocatePort(guidText);
-        var deviceId = new DeviceId(guidText, port);
 
         var joystick = SDL3.SDL_OpenJoystick(sdlId);
         if (joystick is null)
@@ -242,6 +258,40 @@ public sealed unsafe class SdlInputBackend : IDisposable
             Log.Warning("SDL_OpenJoystick failed for {Name} ({Guid}): {Error}", name, guidText, SDL3.SDL_GetError());
             return;
         }
+
+        var vendorId = SDL3.SDL_GetJoystickVendor(joystick);
+        var productId = SDL3.SDL_GetJoystickProduct(joystick);
+
+        // Ownership is settled before anything else, because a pad of ours must not consume a port
+        // ordinal: the ordinals are exactly what a saved profile refers to, so letting a virtual
+        // pad take port 0 would push a real controller to port 1 and break its bindings.
+        if (_virtualGuids.ContainsKey(guidText) || TryClaimVirtualDevice(vendorId, productId))
+        {
+            var ours = new InputDevice
+            {
+                Id = new DeviceId(guidText, 0),
+                InstanceId = instanceId,
+                Name = name,
+                Handle = (IntPtr)joystick,
+                VendorId = vendorId,
+                ProductId = productId,
+                IsVirtual = true,
+                IsConnected = true,
+            };
+
+            // Tracked by instance id only, so it stays invisible to pickers and to port allocation.
+            _byInstanceId[instanceId] = ours;
+            _virtualInstanceIds[instanceId] = 1;
+
+            Log.Information(
+                "Ignoring our own virtual pad {Name} (instance {Instance}) to prevent a feedback loop",
+                name, instanceId);
+            return;
+        }
+
+        // Allocate the lowest free port ordinal among real devices sharing this GUID.
+        var port = AllocatePort(guidText);
+        var deviceId = new DeviceId(guidText, port);
 
         var isGamepad = SDL3.SDL_IsGamepad(sdlId);
         SDL_Gamepad* gamepad = null;
@@ -274,12 +324,12 @@ public sealed unsafe class SdlInputBackend : IDisposable
         device.AxisCount = Math.Max(axisCount, 0);
         device.ButtonCount = Math.Max(buttonCount, 0);
         device.HatCount = Math.Max(hatCount, 0);
-        device.VendorId = SDL3.SDL_GetJoystickVendor(joystick);
-        device.ProductId = SDL3.SDL_GetJoystickProduct(joystick);
+        device.VendorId = vendorId;
+        device.ProductId = productId;
         device.Serial = SDL3.SDL_GetJoystickSerial(joystick);
         device.Path = SDL3.SDL_GetJoystickPath(joystick);
         device.SupportsRumble = DetectRumbleSupport(joystick);
-        device.IsVirtual = isVirtualPad;
+        device.IsVirtual = false;
         device.IsConnected = true;
 
         // Resize the snapshot only when the topology actually changed.
@@ -297,27 +347,52 @@ public sealed unsafe class SdlInputBackend : IDisposable
 
         _byInstanceId[instanceId] = device;
 
-        if (isVirtualPad)
-        {
-            _virtualInstanceIds[instanceId] = 1;
-            _virtualGuids[guidText] = 1;
-            Log.Information("Ignoring virtual pad {Name} ({Id}) to prevent feedback loop", name, deviceId);
-        }
-        else
-        {
-            Log.Information(
-                "Device connected: {Name} [{Id}] {Caps}",
-                device.Name, deviceId, device.CapabilitySummary);
-        }
+        Log.Information(
+            "Device connected: {Name} [{Id}] {Caps}",
+            device.Name, deviceId, device.CapabilitySummary);
 
         // Read once immediately so the resting baseline is available before any bind capture.
         ReadDevice(device);
         device.Snapshot.CaptureRestingValues();
 
-        if (!isVirtualPad)
+        DeviceChanged?.Invoke(new DeviceChangedEventArgs(device, true));
+    }
+
+    /// <summary>
+    /// Decides whether an arriving joystick is the pad we are in the middle of plugging in.
+    /// <para>
+    /// Three conditions must hold together, because each one alone has a false positive that costs
+    /// the user a controller: we must be inside a Connect() scope, that scope must still have its
+    /// single claim unspent, and the USB identity must match the flavour we asked ViGEm for. The
+    /// previous bare time window plus GUID blacklist wrote a real controller off for the rest of
+    /// the session - and since identical twin adapters share one GUID, writing off one wrote off
+    /// both of them.
+    /// </para>
+    /// </summary>
+    private bool TryClaimVirtualDevice(ushort vendorId, ushort productId)
+    {
+        if (Volatile.Read(ref _virtualClaimRemaining) <= 0)
         {
-            DeviceChanged?.Invoke(new DeviceChangedEventArgs(device, true));
+            return false;
         }
+
+        if (Stopwatch.GetTimestamp() > Interlocked.Read(ref _virtualClaimDeadline))
+        {
+            return false;
+        }
+
+        if (vendorId != _virtualClaimVendor || productId != _virtualClaimProduct)
+        {
+            return false;
+        }
+
+        if (Interlocked.Decrement(ref _virtualClaimRemaining) < 0)
+        {
+            Interlocked.Increment(ref _virtualClaimRemaining);
+            return false;
+        }
+
+        return true;
     }
 
     private static bool DetectRumbleSupport(SDL_Joystick* joystick)
@@ -540,12 +615,22 @@ public sealed unsafe class SdlInputBackend : IDisposable
     }
 
     /// <summary>
-    /// Marks the window during which newly arriving joysticks are assumed to be our own virtual
-    /// pads. Wrap ViGEm <c>Connect()</c> calls in this scope.
+    /// Marks the window during which one arriving joystick of the given identity is assumed to be
+    /// our own virtual pad. Wrap ViGEm <c>Connect()</c> calls in this scope.
     /// </summary>
-    public IDisposable ExpectVirtualDevice() => new VirtualDeviceScope(this);
+    /// <param name="vendorId">USB vendor id ViGEm presents for this pad flavour.</param>
+    /// <param name="productId">USB product id ViGEm presents for this pad flavour.</param>
+    public IDisposable ExpectVirtualDevice(ushort vendorId, ushort productId) =>
+        new VirtualDeviceScope(this, vendorId, productId);
 
-    /// <summary>Explicitly blacklists a GUID as belonging to a virtual pad.</summary>
+    /// <summary>Convenience overload for the Xbox 360 pad identity.</summary>
+    public IDisposable ExpectVirtualDevice() => ExpectVirtualDevice(0x045E, 0x028E);
+
+    /// <summary>Explicitly marks a GUID as belonging to a virtual pad.</summary>
+    /// <remarks>
+    /// Only for deliberate, user-driven exclusions. Never call this from arrival detection: ViGEm
+    /// pads share their GUID with genuine controllers of the same flavour.
+    /// </remarks>
     public void BlacklistVirtualGuid(string guid)
     {
         if (!string.IsNullOrWhiteSpace(guid))
@@ -607,19 +692,49 @@ public sealed unsafe class SdlInputBackend : IDisposable
 
     private sealed class VirtualDeviceScope : IDisposable
     {
+        /// <summary>Upper bound on how long a single claim can stay open.</summary>
+        private const int TimeoutMs = 1500;
+
         private readonly SdlInputBackend _backend;
 
-        public VirtualDeviceScope(SdlInputBackend backend)
+        public VirtualDeviceScope(SdlInputBackend backend, ushort vendorId, ushort productId)
         {
             _backend = backend;
-            _backend._expectingVirtualDevice = true;
+
+            lock (backend._sdlLock)
+            {
+                // Flush arrivals that are already queued, so a controller the user plugged in a
+                // moment ago is opened as itself instead of being claimed by this scope.
+                if (backend._sdlReady)
+                {
+                    backend.DrainEvents();
+                }
+
+                backend._virtualClaimVendor = vendorId;
+                backend._virtualClaimProduct = productId;
+
+                Interlocked.Exchange(
+                    ref backend._virtualClaimDeadline,
+                    Stopwatch.GetTimestamp() + (Stopwatch.Frequency * TimeoutMs / 1000));
+
+                Interlocked.Exchange(ref backend._virtualClaimRemaining, 1);
+            }
         }
 
         public void Dispose()
         {
-            // Give SDL a moment to surface the arrival event for the pad we just plugged in.
-            Thread.Sleep(500);
-            _backend._expectingVirtualDevice = false;
+            // Wait for the pad to actually appear rather than sleeping blindly: on a healthy system
+            // this returns within a few tens of milliseconds instead of always costing half a
+            // second per pad, and it never blocks longer than the scope's own timeout.
+            var deadline = Interlocked.Read(ref _backend._virtualClaimDeadline);
+
+            while (Volatile.Read(ref _backend._virtualClaimRemaining) > 0
+                   && Stopwatch.GetTimestamp() < deadline)
+            {
+                Thread.Sleep(10);
+            }
+
+            Interlocked.Exchange(ref _backend._virtualClaimRemaining, 0);
         }
     }
 }

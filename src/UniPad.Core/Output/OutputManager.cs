@@ -195,9 +195,15 @@ public sealed class OutputManager : IDisposable
 
             pad.RumbleReceived += args => OnRumble(slot, args);
 
+            // ViGEm always presents the same USB identity per flavour, so telling the input side
+            // exactly what to expect is what keeps a real Xbox pad or DS4 out of the claim.
+            var (vendorId, productId) = mapping.OutputType == VirtualPadType.DualShock4
+                ? ((ushort)0x054C, (ushort)0x05C4)
+                : ((ushort)0x045E, (ushort)0x028E);
+
             // Suppress our own pad from the input side while it is being plugged in, otherwise SDL
             // sees it as a new controller and the output loops straight back into the input.
-            using (_input.ExpectVirtualDevice())
+            using (_input.ExpectVirtualDevice(vendorId, productId))
             {
                 pad.Connect();
             }

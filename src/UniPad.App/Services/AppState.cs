@@ -122,6 +122,10 @@ public sealed class AppState : IDisposable
             RaiseStatus($"Input initialisation failed: {ex.Message}");
         }
 
+        // Let SDL finish discovering controllers before any virtual pad is created: it enumerates
+        // on its own thread, so the list is still growing when Start() returns.
+        WaitForDeviceEnumeration();
+
         // Started after SDL so that a failure here cannot prevent controllers from working.
         KeyboardMouse?.Start();
 
@@ -134,44 +138,115 @@ public sealed class AppState : IDisposable
     }
 
     /// <summary>
+    /// Waits briefly for the device list to settle. Without this, pads were created while real
+    /// controllers were still arriving, which both raced the virtual-pad detection and made the
+    /// first reattach work from an incomplete list.
+    /// </summary>
+    private void WaitForDeviceEnumeration()
+    {
+        var deadline = Environment.TickCount64 + 900;
+        var lastCount = -1;
+        var stableSince = Environment.TickCount64;
+
+        while (Environment.TickCount64 < deadline)
+        {
+            var count = Input.Devices.Count();
+
+            if (count != lastCount)
+            {
+                lastCount = count;
+                stableSince = Environment.TickCount64;
+            }
+            else if (count > 0 && Environment.TickCount64 - stableSince >= 250)
+            {
+                break;
+            }
+
+            Thread.Sleep(50);
+        }
+
+        // One explicit rescan covers anything SDL discovered without raising an event yet.
+        Input.EnumerateDevices();
+    }
+
+    /// <summary>
     /// Reconnects saved device ids to whatever is currently plugged in. Called at startup and on
     /// every hot-plug event so a controller that returns keeps its player slot.
+    /// <para>
+    /// Runs in two passes and tracks ownership, because a single greedy pass used to hand the same
+    /// controller to two players: with identical twin adapters the second player's saved port is
+    /// briefly absent during enumeration, the same-GUID fallback then matched the first player's
+    /// device, and the overwritten bindings were persisted on exit. Tracking ownership also repairs
+    /// a profile that was already damaged that way.
+    /// </para>
     /// </summary>
     public void ReattachDevices()
     {
+        // Device key to the player index that owns it.
+        var owner = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        // Pass 1: exact port matches for every player, before anything speculative happens.
         foreach (var player in _players)
         {
-            if (player.Device is null)
-            {
-                continue;
-            }
-
             // The synthetic device is never enumerated and never moves ports, so there is nothing
             // to reattach and the GUID fallback below must not run for it.
-            if (player.Device.IsSynthetic)
+            if (player.Device is null || player.Device.IsSynthetic)
             {
                 continue;
             }
 
             var device = Input.FindDevice(player.Device);
-            if (device is { IsConnected: true })
+            if (device is not { IsConnected: true })
             {
-                player.DeviceName = device.Name;
                 continue;
             }
 
-            // Exact port match failed; try the same GUID on any port, which covers the common case
-            // of a controller coming back on a different USB socket.
-            var fallback = Input.Devices.FirstOrDefault(d => d.Id.Guid == player.Device.Guid);
-            if (fallback is not null)
+            var key = device.Id.ToString();
+            if (owner.ContainsKey(key))
             {
-                Log.Information(
-                    "Player {Player} device moved from port {Old} to {New}",
-                    player.Index + 1, player.Device.Port, fallback.Id.Port);
-
-                RemapPlayerDevice(player, fallback.Id);
-                player.DeviceName = fallback.Name;
+                // An earlier player already owns this controller, so this slot is left to pass 2 -
+                // that is what heals a profile where two players point at the same device.
+                continue;
             }
+
+            owner[key] = player.Index;
+            player.DeviceName = device.Name;
+        }
+
+        // Pass 2: a controller that came back on a different port keeps its player, but only when
+        // the device it would take is genuinely free.
+        foreach (var player in _players)
+        {
+            if (player.Device is null || player.Device.IsSynthetic)
+            {
+                continue;
+            }
+
+            if (owner.TryGetValue(player.Device.ToString(), out var ownerIndex)
+                && ownerIndex == player.Index)
+            {
+                continue;
+            }
+
+            var fallback = Input.Devices
+                .Where(d => d.Id.Guid == player.Device.Guid && !owner.ContainsKey(d.Id.ToString()))
+                .OrderBy(d => d.Id.Port)
+                .FirstOrDefault();
+
+            if (fallback is null)
+            {
+                // Nothing suitable is plugged in. The saved id is deliberately kept, so the player
+                // reattaches by itself the moment its controller comes back.
+                continue;
+            }
+
+            Log.Information(
+                "Player {Player} device moved from port {Old} to {New}",
+                player.Index + 1, player.Device.Port, fallback.Id.Port);
+
+            RemapPlayerDevice(player, fallback.Id);
+            player.DeviceName = fallback.Name;
+            owner[fallback.Id.ToString()] = player.Index;
         }
     }
 
@@ -384,10 +459,19 @@ public sealed class AppState : IDisposable
     /// <remarks>
     /// Only real controllers take part. Handing a player the keyboard without being asked would be
     /// a surprise, so the keyboard is opted into per player from the device picker instead.
+    /// <para>
+    /// Devices are ordered by GUID and then numerically by port. Ordering by the id string alone
+    /// would sort port 10 before port 2, which is exactly the sort of detail that makes twin
+    /// adapters land in the wrong player slots.
+    /// </para>
     /// </remarks>
     public int AutoDetectAll()
     {
-        var devices = Input.Devices.OrderBy(d => d.Id.ToString()).ToList();
+        var devices = Input.Devices
+            .OrderBy(d => d.Id.Guid, StringComparer.Ordinal)
+            .ThenBy(d => d.Id.Port)
+            .ToList();
+
         var assigned = 0;
 
         for (var i = 0; i < _players.Count && i < devices.Count; i++)
