@@ -9,8 +9,8 @@ using UniPad.Core.SystemServices;
 namespace UniPad.App.Services;
 
 /// <summary>
-/// Single owner of every long-lived runtime service: the SDL backend, the ViGEm output manager,
-/// the profile store and the HidHide integration.
+/// Single owner of every long-lived runtime service: the SDL backend, the keyboard and mouse
+/// source, the ViGEm output manager, the profile store and the HidHide integration.
 /// <para>
 /// The view models talk to this class rather than instantiating services themselves, which keeps
 /// the application to exactly one polling thread and one virtual bus client.
@@ -37,6 +37,21 @@ public sealed class AppState : IDisposable
         LogSetup.Initialise(Config.VerboseLogging);
 
         Input = new SdlInputBackend { PollRateHz = Config.PollRateHz };
+
+        // The keyboard and mouse are optional: a user who never binds them should not have a raw
+        // input sink running at all, and the option is read once so the sink cannot appear or
+        // disappear underneath a live mapping.
+        if (Config.KeyboardMouseEnabled)
+        {
+            KeyboardMouse = new KeyboardMouseBackend();
+            KeyboardMouse.Mouse.Sensitivity = Config.MouseSensitivity;
+            KeyboardMouse.Mouse.ReturnSpeed = Config.MouseReturnSpeed;
+            KeyboardMouse.Mouse.InvertY = Config.MouseInvertY;
+
+            // Lets FindDevice resolve "keyboard:0" through the same call every joystick uses.
+            Input.SyntheticResolver = _ => KeyboardMouse.Device;
+        }
+
         Output = new OutputManager(Input);
         HidHide = new HidHideService();
 
@@ -44,7 +59,16 @@ public sealed class AppState : IDisposable
         ActiveProfileName = Config.ActiveProfile;
 
         // The mapping evaluation runs inside the poll cycle so latency stays within one iteration.
-        Input.OnPollCycle = Output.ProcessCycle;
+        // The synthetic source refreshes first, so the mapping engines see the same cycle's mouse
+        // delta rather than the previous one.
+        Input.OnPollCycle = KeyboardMouse is null
+            ? Output.ProcessCycle
+            : () =>
+            {
+                KeyboardMouse.Poll();
+                Output.ProcessCycle();
+            };
+
         Input.DeviceChanged += OnDeviceChanged;
     }
 
@@ -56,6 +80,9 @@ public sealed class AppState : IDisposable
 
     /// <summary>SDL input backend.</summary>
     public SdlInputBackend Input { get; }
+
+    /// <summary>Synthetic keyboard and mouse source, or null when the feature is disabled.</summary>
+    public KeyboardMouseBackend? KeyboardMouse { get; }
 
     /// <summary>Virtual pad output manager.</summary>
     public OutputManager Output { get; }
@@ -95,6 +122,9 @@ public sealed class AppState : IDisposable
             RaiseStatus($"Input initialisation failed: {ex.Message}");
         }
 
+        // Started after SDL so that a failure here cannot prevent controllers from working.
+        KeyboardMouse?.Start();
+
         Output.TryInitialiseDriver();
         Output.Enabled = Config.OutputEnabled;
 
@@ -112,6 +142,13 @@ public sealed class AppState : IDisposable
         foreach (var player in _players)
         {
             if (player.Device is null)
+            {
+                continue;
+            }
+
+            // The synthetic device is never enumerated and never moves ports, so there is nothing
+            // to reattach and the GUID fallback below must not run for it.
+            if (player.Device.IsSynthetic)
             {
                 continue;
             }
@@ -269,8 +306,10 @@ public sealed class AppState : IDisposable
             return;
         }
 
+        // Synthetic sources are excluded deliberately: cloaking the keyboard and mouse would hide
+        // them from every other application, including the desktop itself.
         var assigned = _players
-            .Where(p => p is { Enabled: true, Device: not null })
+            .Where(p => p is { Enabled: true, Device: not null } && !p.Device!.IsSynthetic)
             .Select(p => Input.FindDevice(p.Device))
             .Where(d => d is { IsConnected: true })
             .Select(d => d!)
@@ -287,6 +326,14 @@ public sealed class AppState : IDisposable
         Config.ActiveProfile = ActiveProfileName;
         Config.PollRateHz = Input.PollRateHz;
         Config.OutputEnabled = Output.Enabled;
+
+        if (KeyboardMouse is not null)
+        {
+            Config.MouseSensitivity = KeyboardMouse.Mouse.Sensitivity;
+            Config.MouseReturnSpeed = KeyboardMouse.Mouse.ReturnSpeed;
+            Config.MouseInvertY = KeyboardMouse.Mouse.InvertY;
+        }
+
         Store.SaveConfig(Config);
     }
 
@@ -334,6 +381,10 @@ public sealed class AppState : IDisposable
     /// <summary>
     /// Runs auto-mapping for every connected device, assigning them to consecutive player slots.
     /// </summary>
+    /// <remarks>
+    /// Only real controllers take part. Handing a player the keyboard without being asked would be
+    /// a surprise, so the keyboard is opted into per player from the device picker instead.
+    /// </remarks>
     public int AutoDetectAll()
     {
         var devices = Input.Devices.OrderBy(d => d.Id.ToString()).ToList();
@@ -384,6 +435,7 @@ public sealed class AppState : IDisposable
         // Order matters: stop cloaking before releasing devices so nothing stays hidden.
         HidHide.DisableCloaking();
         Output.Dispose();
+        KeyboardMouse?.Dispose();
         Input.Dispose();
         _hotplugGate.Dispose();
 

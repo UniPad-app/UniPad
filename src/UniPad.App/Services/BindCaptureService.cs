@@ -33,6 +33,9 @@ public sealed class BindCaptureService
 
     private readonly SdlInputBackend _input;
 
+    /// <summary>Synthetic keyboard and mouse source, or null when the feature is disabled.</summary>
+    private readonly KeyboardMouseBackend? _keyboardMouse;
+
     /// <summary>Guards the session fields against the three threads that reach them.</summary>
     private readonly object _gate = new();
 
@@ -49,10 +52,13 @@ public sealed class BindCaptureService
     private CancellationTokenSource? _timeout;
     private DeviceId? _restrictToDevice;
 
-    /// <summary>Creates a capture service reading from the given backend.</summary>
-    public BindCaptureService(SdlInputBackend input)
+    /// <summary>Creates a capture service reading from the given backends.</summary>
+    /// <param name="input">SDL backend supplying the joysticks.</param>
+    /// <param name="keyboardMouse">Optional synthetic keyboard and mouse source.</param>
+    public BindCaptureService(SdlInputBackend input, KeyboardMouseBackend? keyboardMouse = null)
     {
         _input = input;
+        _keyboardMouse = keyboardMouse;
     }
 
     /// <summary>True while a capture session is running.</summary>
@@ -200,15 +206,25 @@ public sealed class BindCaptureService
         }
     }
 
+    /// <summary>
+    /// Devices the current session will listen to. The synthetic keyboard is appended explicitly
+    /// because it is not part of the SDL enumeration.
+    /// </summary>
     private IEnumerable<InputDevice> CandidateDevices()
     {
-        if (_restrictToDevice is null)
+        if (_restrictToDevice is not null)
         {
-            return _input.Devices;
+            var restricted = _restrictToDevice.IsSynthetic
+                ? _keyboardMouse?.Device
+                : _input.FindDevice(_restrictToDevice);
+
+            return restricted is { IsConnected: true } ? [restricted] : [];
         }
 
-        var device = _input.FindDevice(_restrictToDevice);
-        return device is { IsConnected: true } ? [device] : [];
+        var synthetic = _keyboardMouse?.Device;
+        return synthetic is { IsConnected: true }
+            ? _input.Devices.Append(synthetic)
+            : _input.Devices;
     }
 
     /// <summary>
@@ -279,7 +295,10 @@ public sealed class BindCaptureService
         }
 
         // ---- Axes: movement of more than half full travel from the baseline ----
-        if (_axisBaselines.TryGetValue(key, out var axisBaseline))
+        // The mouse axes are assigned by the auto-map defaults and never by capture: simply moving
+        // the mouse towards the bind button would otherwise grab the binding before the user has
+        // pressed anything at all.
+        if (!device.Id.IsSynthetic && _axisBaselines.TryGetValue(key, out var axisBaseline))
         {
             var count = Math.Min(snapshot.Axes.Length, axisBaseline.Length);
             var threshold = (int)(AxisMax * AxisTriggerFraction);

@@ -58,6 +58,39 @@
             </Grid>
           </StackPanel>
         </HeaderedContentControl>
+
+        <HeaderedContentControl Classes="groupBox"
+                                Header="{Binding Text[group.keyboardMouse], Source={x:Static loc:Strings.Instance}}">
+          <StackPanel Spacing="4">
+            <CheckBox IsChecked="{Binding KeyboardMouseEnabled}"
+                      Content="{Binding Text[opt.keyboardMouseEnabled], Source={x:Static loc:Strings.Instance}}" />
+
+            <StackPanel Spacing="2" IsEnabled="{Binding IsKeyboardMouseAvailable}">
+              <TextBlock Classes="caption">
+                <Run Text="{Binding Text[opt.mouseSensitivity], Source={x:Static loc:Strings.Instance}}" />
+                <Run Text=": " />
+                <Run Text="{Binding MouseSensitivity, StringFormat={}{0:0.00}}" />
+              </TextBlock>
+              <Slider Minimum="0.1" Maximum="5" SmallChange="0.05" LargeChange="0.25"
+                      Value="{Binding MouseSensitivity}" />
+
+              <TextBlock Classes="caption">
+                <Run Text="{Binding Text[opt.mouseReturnSpeed], Source={x:Static loc:Strings.Instance}}" />
+                <Run Text=": " />
+                <Run Text="{Binding MouseReturnSpeed, StringFormat={}{0:0.00} s}" />
+              </TextBlock>
+              <Slider Minimum="0.02" Maximum="0.4" SmallChange="0.01" LargeChange="0.05"
+                      Value="{Binding MouseReturnSpeed}" />
+
+              <CheckBox IsChecked="{Binding MouseInvertY}"
+                        Content="{Binding Text[opt.mouseInvertY], Source={x:Static loc:Strings.Instance}}" />
+            </StackPanel>
+
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Foreground="{DynamicResource WarningBrush}"
+                       Text="{Binding Text[msg.keyboardMouseDoubleInput], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+        </HeaderedContentControl>
       </StackPanel>
 
       <StackPanel Grid.Column="1" Spacing="2" Margin="3,0,0,0">

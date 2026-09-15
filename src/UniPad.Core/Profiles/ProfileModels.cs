@@ -144,6 +144,25 @@ public sealed class AppConfigDto
     /// <summary>Whether the HidHide recommendation banner has been dismissed.</summary>
     [JsonPropertyName("hidHideBannerDismissed")]
     public bool HidHideBannerDismissed { get; set; }
+
+    /// <summary>
+    /// Whether the synthetic keyboard and mouse source is created at startup. Read once during
+    /// construction, so changing it needs a restart.
+    /// </summary>
+    [JsonPropertyName("keyboardMouseEnabled")]
+    public bool KeyboardMouseEnabled { get; set; } = true;
+
+    /// <summary>Mouse-to-stick sensitivity multiplier.</summary>
+    [JsonPropertyName("mouseSensitivity")]
+    public float MouseSensitivity { get; set; } = 1.0f;
+
+    /// <summary>Seconds for the mouse-driven stick to fall back to centre.</summary>
+    [JsonPropertyName("mouseReturnSpeed")]
+    public float MouseReturnSpeed { get; set; } = 0.08f;
+
+    /// <summary>Inverts vertical mouse movement.</summary>
+    [JsonPropertyName("mouseInvertY")]
+    public bool MouseInvertY { get; set; }
 }
 
 /// <summary>Schema version constants and migration helpers.</summary>

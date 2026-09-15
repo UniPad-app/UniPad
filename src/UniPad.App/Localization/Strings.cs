@@ -103,6 +103,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["player.controllerType"] = "Controller Type",
         ["player.any"] = "Any",
         ["player.notConnected"] = "Not connected",
+        ["player.keyboardMouse"] = "Keyboard & Mouse",
 
         ["group.leftStick"] = "Left Stick",
         ["group.rightStick"] = "Right Stick",
@@ -113,6 +114,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["group.shouldersR"] = "Shoulder R",
         ["group.triggers"] = "Triggers",
         ["group.misc"] = "Misc",
+        ["group.keyboardMouse"] = "Keyboard & Mouse",
 
         ["bind.up"] = "Up",
         ["bind.down"] = "Down",
@@ -189,6 +191,10 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.language"] = "Language",
         ["opt.verboseLogging"] = "Verbose logging",
         ["opt.outputEnabled"] = "Output enabled",
+        ["opt.keyboardMouseEnabled"] = "Enable keyboard and mouse input",
+        ["opt.mouseSensitivity"] = "Mouse sensitivity",
+        ["opt.mouseReturnSpeed"] = "Return to centre",
+        ["opt.mouseInvertY"] = "Invert mouse Y",
 
         ["status.emulatedDevices"] = "Emulated Devices",
         ["status.other"] = "Other",
@@ -205,6 +211,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.noDevice"] = "Select an input device first.",
         ["msg.xinputLimit"] = "Windows provides only 4 XInput slots. Players 5-8 use DualShock 4 output, which XInput-only games will not see.",
         ["msg.antiCheat"] = "Games with kernel-mode anti-cheat may reject virtual controllers. This tool is not designed to bypass any protection.",
+        ["msg.keyboardMouseRestart"] = "Restart UniPad for this change to take effect.",
+        ["msg.keyboardMouseDoubleInput"] = "Keystrokes still reach the game as well as the virtual pad. Unbind the keyboard controls inside the game if both respond at once.",
 
     };
 
@@ -227,6 +235,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["player.controllerType"] = "نوع کنترلر",
         ["player.any"] = "هر کدام",
         ["player.notConnected"] = "متصل نیست",
+        ["player.keyboardMouse"] = "کیبورد و ماوس",
 
         ["group.leftStick"] = "آنالوگ چپ",
         ["group.rightStick"] = "آنالوگ راست",
@@ -237,6 +246,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["group.shouldersR"] = "شانه راست",
         ["group.triggers"] = "ماشه‌ها",
         ["group.misc"] = "متفرقه",
+        ["group.keyboardMouse"] = "کیبورد و ماوس",
 
         ["bind.up"] = "بالا",
         ["bind.down"] = "پایین",
@@ -312,6 +322,10 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.language"] = "زبان",
         ["opt.verboseLogging"] = "لاگ کامل",
         ["opt.outputEnabled"] = "خروجی فعال",
+        ["opt.keyboardMouseEnabled"] = "فعال‌سازی ورودی کیبورد و ماوس",
+        ["opt.mouseSensitivity"] = "حساسیت ماوس",
+        ["opt.mouseReturnSpeed"] = "بازگشت به مرکز",
+        ["opt.mouseInvertY"] = "معکوس کردن محور عمودی ماوس",
 
         ["status.emulatedDevices"] = "دستگاه‌های شبیه‌سازی‌شده",
         ["status.other"] = "سایر",
@@ -328,6 +342,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.noDevice"] = "ابتدا یک دستگاه ورودی انتخاب کنید.",
         ["msg.xinputLimit"] = "ویندوز فقط ۴ اسلات XInput دارد. بازیکنان ۵ تا ۸ از خروجی DualShock 4 استفاده می‌کنند که بازی‌های صرفاً XInput آن‌ها را نمی‌بینند.",
         ["msg.antiCheat"] = "بازی‌هایی با آنتی‌چیت کرنل‌مود ممکن است کنترلر مجازی را نپذیرند. این ابزار برای دور زدن هیچ محافظتی طراحی نشده است.",
+        ["msg.keyboardMouseRestart"] = "برای اعمال این تغییر UniPad را دوباره اجرا کنید.",
+        ["msg.keyboardMouseDoubleInput"] = "کلیدهای فشرده‌شده علاوه بر پد مجازی به خود بازی هم می‌رسند. اگر هر دو هم‌زمان واکنش نشان دادند، کنترل‌های کیبورد را داخل بازی بردارید.",
 
     };
 }

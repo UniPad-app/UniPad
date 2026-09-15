@@ -32,6 +32,21 @@ public static unsafe class AutoMapper
         mapping.Device = device.Id;
         mapping.DeviceName = device.Name;
 
+        // The keyboard and mouse have no discoverable topology to reason about, so they get a fixed
+        // layout instead of either of the joystick paths.
+        if (device.Id.IsSynthetic)
+        {
+            var keyCount = ApplyKeyboardMouseMapping(mapping);
+
+            Log.Information("Applied the default keyboard and mouse layout ({Count} targets)", keyCount);
+
+            return new AutoMapResult(
+                Success: true,
+                UsedSdlMapping: false,
+                MappedTargets: keyCount,
+                Message: "Applied the default keyboard and mouse layout.");
+        }
+
         if (device.ReadMode == DeviceReadMode.Gamepad && device.GamepadHandle != IntPtr.Zero)
         {
             var count = ApplySdlGamepadMapping(mapping, device);
@@ -387,6 +402,77 @@ public static unsafe class AutoMapper
         // Most modern games read only the analogue stick, so without this a NES-style pad would
         // move nothing at all.
         mapping.EmulateStickWithDpad = device.AxisCount < 2;
+
+        return count;
+    }
+
+    /// <summary>
+    /// Default WASD layout for the synthetic keyboard/mouse device.
+    /// <para>
+    /// The choices follow the conventions a PC player already has in their fingers rather than a
+    /// literal pad layout: the mouse buttons become the triggers because aim and fire are what they
+    /// do in every shooter, and the mouse itself drives the right stick for camera control.
+    /// </para>
+    /// </summary>
+    private static int ApplyKeyboardMouseMapping(PlayerMapping mapping)
+    {
+        var id = DeviceId.Keyboard;
+        var count = 0;
+
+        void Bind(PadTarget target, int virtualKey)
+        {
+            mapping.SetBinding(target, InputBinding.ForButton(id, virtualKey));
+            count++;
+        }
+
+        // ---- Movement ----
+        Bind(PadTarget.LStickUp, 'W');
+        Bind(PadTarget.LStickDown, 'S');
+        Bind(PadTarget.LStickLeft, 'A');
+        Bind(PadTarget.LStickRight, 'D');
+        Bind(PadTarget.LStickPress, 0xA0);      // Left Shift - sprint
+        Bind(PadTarget.LStickModifier, 0xA4);   // Left Alt - walk
+
+        // ---- Face buttons ----
+        Bind(PadTarget.A, 0x20);                // Space
+        Bind(PadTarget.B, 0xA2);                // Left Ctrl
+        Bind(PadTarget.X, 'R');
+        Bind(PadTarget.Y, 'E');
+
+        // ---- Shoulders and triggers ----
+        Bind(PadTarget.LeftBumper, 'Q');
+        Bind(PadTarget.RightBumper, 'F');
+        Bind(PadTarget.LeftTrigger, KeyNames.MouseRight);
+        Bind(PadTarget.RightTrigger, KeyNames.MouseLeft);
+        Bind(PadTarget.RStickPress, KeyNames.MouseMiddle);
+
+        // ---- D-Pad ----
+        Bind(PadTarget.DPadUp, 0x26);
+        Bind(PadTarget.DPadDown, 0x28);
+        Bind(PadTarget.DPadLeft, 0x25);
+        Bind(PadTarget.DPadRight, 0x27);
+
+        // ---- System ----
+        Bind(PadTarget.Back, 0x09);             // Tab
+        Bind(PadTarget.Start, 0x1B);            // Esc
+        Bind(PadTarget.Guide, 0x70);            // F1
+
+        // ---- Mouse onto the right stick ----
+        mapping.SetBinding(
+            PadTarget.RStickRight, InputBinding.ForAxis(id, KeyNames.MouseAxisX, AxisDirection.Positive));
+        mapping.SetBinding(
+            PadTarget.RStickLeft, InputBinding.ForAxis(id, KeyNames.MouseAxisX, AxisDirection.Negative));
+        mapping.SetBinding(
+            PadTarget.RStickDown, InputBinding.ForAxis(id, KeyNames.MouseAxisY, AxisDirection.Positive));
+        mapping.SetBinding(
+            PadTarget.RStickUp, InputBinding.ForAxis(id, KeyNames.MouseAxisY, AxisDirection.Negative));
+        count += 4;
+
+        // The mouse is already centred by its own decay curve, so a second dead zone would only add
+        // lag around the centre, and clipping the range would cap how fast the camera can turn.
+        mapping.RightStick.Deadzone = 0f;
+        mapping.RightStick.Range = 1f;
+        mapping.EmulateStickWithDpad = false;
 
         return count;
     }

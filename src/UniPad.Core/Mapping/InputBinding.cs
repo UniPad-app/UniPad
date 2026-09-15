@@ -127,6 +127,16 @@ public sealed class InputBinding
     /// <summary>Short text shown on a bind button in the UI, mirroring yuzu's wording.</summary>
     public string ToDisplayString() => Type switch
     {
+        // The synthetic keyboard/mouse device stores a virtual-key code in Index and uses axes 0/1
+        // for mouse movement, so it needs its own naming rather than the raw joystick wording.
+        BindingSourceType.Button when Device is { Guid: "keyboard" } => KeyNames.ToDisplay(Index),
+        BindingSourceType.Axis when Device is { Guid: "keyboard" } => Direction switch
+        {
+            AxisDirection.Positive => Index == KeyNames.MouseAxisX ? "Mouse Right" : "Mouse Down",
+            AxisDirection.Negative => Index == KeyNames.MouseAxisX ? "Mouse Left" : "Mouse Up",
+            _ => Index == KeyNames.MouseAxisX ? "Mouse X" : "Mouse Y",
+        },
+
         BindingSourceType.Button => $"Button {Index}",
         BindingSourceType.Axis => Direction switch
         {

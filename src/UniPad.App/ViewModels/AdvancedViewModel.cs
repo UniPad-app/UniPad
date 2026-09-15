@@ -65,6 +65,21 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     private string _selectedLanguage = "en";
 
     [ObservableProperty]
+    private bool _keyboardMouseEnabled;
+
+    [ObservableProperty]
+    private double _mouseSensitivity = 1.0;
+
+    [ObservableProperty]
+    private double _mouseReturnSpeed = 0.08;
+
+    [ObservableProperty]
+    private bool _mouseInvertY;
+
+    /// <summary>True when the keyboard and mouse source actually started.</summary>
+    public bool IsKeyboardMouseAvailable => _state.KeyboardMouse is not null;
+
+    [ObservableProperty]
     private string _driverStatus = string.Empty;
 
     [ObservableProperty]
@@ -96,6 +111,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         SelectedPollRate = state.Input.PollRateHz;
         SelectedTheme = state.Config.Theme;
         SelectedLanguage = state.Config.Language;
+        KeyboardMouseEnabled = state.Config.KeyboardMouseEnabled;
+        MouseSensitivity = state.KeyboardMouse?.Mouse.Sensitivity ?? state.Config.MouseSensitivity;
+        MouseReturnSpeed = state.KeyboardMouse?.Mouse.ReturnSpeed ?? state.Config.MouseReturnSpeed;
+        MouseInvertY = state.KeyboardMouse?.Mouse.InvertY ?? state.Config.MouseInvertY;
         _suppress = false;
 
         RefreshDriverStatus();
@@ -332,6 +351,66 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         Strings.Instance.Language = value;
     }
 
+    partial void OnKeyboardMouseEnabledChanged(bool value)
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        // The raw input sink is created once during startup, so toggling it has to wait for the
+        // next launch rather than tearing down a source that live mappings may be reading.
+        _state.Config.KeyboardMouseEnabled = value;
+        _state.ReportStatus(Strings.Get("msg.keyboardMouseRestart"));
+    }
+
+    partial void OnMouseSensitivityChanged(double value)
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        var clamped = (float)Math.Clamp(value, 0.05, 10.0);
+        _state.Config.MouseSensitivity = clamped;
+
+        if (_state.KeyboardMouse is not null)
+        {
+            _state.KeyboardMouse.Mouse.Sensitivity = clamped;
+        }
+    }
+
+    partial void OnMouseReturnSpeedChanged(double value)
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        var clamped = (float)Math.Clamp(value, 0.02, 0.4);
+        _state.Config.MouseReturnSpeed = clamped;
+
+        if (_state.KeyboardMouse is not null)
+        {
+            _state.KeyboardMouse.Mouse.ReturnSpeed = clamped;
+        }
+    }
+
+    partial void OnMouseInvertYChanged(bool value)
+    {
+        if (_suppress)
+        {
+            return;
+        }
+
+        _state.Config.MouseInvertY = value;
+
+        if (_state.KeyboardMouse is not null)
+        {
+            _state.KeyboardMouse.Mouse.InvertY = value;
+        }
+    }
+
     /// <summary>Raised when the user picks a different theme.</summary>
     public event Action<string>? ThemeRequested;
 
@@ -342,6 +421,13 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     public void UpdateDiagnostics()
     {
         var devices = _state.Input.Devices.ToList();
+
+        // The synthetic source is not part of the SDL enumeration, but showing its pressed keys
+        // here is the easiest way to find the virtual-key code of an unusual key.
+        if (_state.KeyboardMouse is { IsRunning: true } keyboardMouse)
+        {
+            devices.Add(keyboardMouse.Device);
+        }
 
         // Add or remove rows only when the device set actually changed.
         while (DeviceRows.Count > devices.Count)

@@ -230,6 +230,14 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         Devices.Clear();
         Devices.Add(new DeviceOption(null, Strings.Get("player.any")));
 
+        // A single combined entry rather than separate keyboard and mouse ones: a player slot holds
+        // exactly one device, so splitting them would make it impossible to use both at once. When no
+        // mouse is attached its axes simply stay at rest and only the keys do anything.
+        if (_state.KeyboardMouse is not null)
+        {
+            Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
+        }
+
         foreach (var device in _state.Input.Devices.OrderBy(d => d.Name).ThenBy(d => d.Id.Port))
         {
             Devices.Add(new DeviceOption(device.Id, device.DisplayName));
@@ -486,8 +494,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
         DeviceStatus = device switch
         {
-            { IsConnected: true } => $"{device.Name} — {device.CapabilitySummary}",
-            null when Mapping.Device is not null => $"{Mapping.DeviceName ?? Mapping.Device.ToString()} — {Strings.Get("player.notConnected")}",
+            // The synthetic device has no meaningful axis or button count to report, so it gets a
+            // plain caption instead of the hardware capability summary.
+            { IsConnected: true } when device.Id.IsSynthetic => device.Name,
+            { IsConnected: true } => $"{device.Name}  {device.CapabilitySummary}",
+            null when Mapping.Device is not null =>
+                $"{Mapping.DeviceName ?? Mapping.Device.ToString()}  {Strings.Get("player.notConnected")}",
             _ => string.Empty,
         };
 

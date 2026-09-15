@@ -56,7 +56,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(AppState state)
     {
         _state = state;
-        _capture = new BindCaptureService(state.Input);
+        _capture = new BindCaptureService(state.Input, state.KeyboardMouse);
 
         foreach (var mapping in state.Players)
         {

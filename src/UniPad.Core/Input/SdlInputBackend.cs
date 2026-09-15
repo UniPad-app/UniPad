@@ -518,9 +518,26 @@ public sealed unsafe class SdlInputBackend : IDisposable
         device.LastPollTicks = Stopwatch.GetTimestamp();
     }
 
-    /// <summary>Looks up a tracked device by its stable id.</summary>
-    public InputDevice? FindDevice(DeviceId? id) =>
-        id is null ? null : _byDeviceId.GetValueOrDefault(id.ToString());
+    /// <summary>
+    /// Resolves synthetic device ids such as the keyboard. Set by the application layer, because SDL
+    /// itself knows nothing about these devices.
+    /// </summary>
+    public Func<DeviceId, InputDevice?>? SyntheticResolver { get; set; }
+
+    /// <summary>
+    /// Looks up a tracked device by its stable id, falling back to the synthetic resolver so that a
+    /// keyboard binding resolves through exactly the same call as a joystick one.
+    /// </summary>
+    public InputDevice? FindDevice(DeviceId? id)
+    {
+        if (id is null)
+        {
+            return null;
+        }
+
+        var device = _byDeviceId.GetValueOrDefault(id.ToString());
+        return device ?? (id.IsSynthetic ? SyntheticResolver?.Invoke(id) : null);
+    }
 
     /// <summary>
     /// Marks the window during which newly arriving joysticks are assumed to be our own virtual
