@@ -10,20 +10,21 @@
              x:DataType="vm:AdvancedViewModel">
 
   <!--
-    Two halves: global options and driver state on top, then the raw device monitor. The monitor is
-    the single most valuable diagnostic when a no-name adapter reports axes nobody can guess, so it
-    gets the remaining vertical space.
+    Two halves: global options and device-level settings on top, then the raw monitor. General sits
+    on the left; the right column stacks the two boxes that describe what UniPad emulates and what
+    it reads from. Everything about data folders, updates and maintenance lives on the About page
+    now, which keeps this page to things that change how input is handled.
   -->
   <Grid RowDefinitions="Auto,*" Margin="6">
 
-    <!-- ============ Options and driver state ============ -->
+    <!-- ============ Options, drivers and keyboard/mouse ============ -->
     <Grid Grid.Row="0" ColumnDefinitions="*,*">
 
       <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,3,0">
 
         <HeaderedContentControl Classes="groupBox"
                                 Header="{Binding Text[nav.general], Source={x:Static loc:Strings.Instance}}">
-          <StackPanel Spacing="4">
+          <StackPanel Spacing="5">
             <CheckBox IsChecked="{Binding OutputEnabled}"
                       Content="{Binding Text[opt.outputEnabled], Source={x:Static loc:Strings.Instance}}" />
             <CheckBox IsChecked="{Binding HidePhysicalControllers}"
@@ -37,58 +38,26 @@
             <CheckBox IsChecked="{Binding VerboseLogging}"
                       Content="{Binding Text[opt.verboseLogging], Source={x:Static loc:Strings.Instance}}" />
 
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,4,0,0">
-              <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
-                         Margin="0,0,6,3"
+            <!-- Labels are right-aligned against the pickers so the three rows read as a column. -->
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,6,0,0">
+              <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,4"
                          Text="{Binding Text[opt.pollRate], Source={x:Static loc:Strings.Instance}}" />
-              <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,3" HorizontalAlignment="Stretch"
+              <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" HorizontalAlignment="Stretch"
                         ItemsSource="{Binding PollRates}" SelectedItem="{Binding SelectedPollRate}" />
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
-                         Margin="0,0,6,3"
+              <TextBlock Grid.Row="1" Grid.Column="0" Classes="caption"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,4"
                          Text="{Binding Text[opt.theme], Source={x:Static loc:Strings.Instance}}" />
-              <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,3" HorizontalAlignment="Stretch"
+              <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" HorizontalAlignment="Stretch"
                         ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" />
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Classes="groupLabel" VerticalAlignment="Center"
-                         Margin="0,0,6,0"
+              <TextBlock Grid.Row="2" Grid.Column="0" Classes="caption"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
                          Text="{Binding Text[opt.language], Source={x:Static loc:Strings.Instance}}" />
               <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch"
                         ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" />
             </Grid>
-          </StackPanel>
-        </HeaderedContentControl>
-
-        <HeaderedContentControl Classes="groupBox"
-                                Header="{Binding Text[group.keyboardMouse], Source={x:Static loc:Strings.Instance}}">
-          <StackPanel Spacing="4">
-            <CheckBox IsChecked="{Binding KeyboardMouseEnabled}"
-                      Content="{Binding Text[opt.keyboardMouseEnabled], Source={x:Static loc:Strings.Instance}}" />
-
-            <StackPanel Spacing="2" IsEnabled="{Binding IsKeyboardMouseAvailable}">
-              <TextBlock Classes="caption">
-                <Run Text="{Binding Text[opt.mouseSensitivity], Source={x:Static loc:Strings.Instance}}" />
-                <Run Text=": " />
-                <Run Text="{Binding MouseSensitivity, StringFormat={}{0:0.00}}" />
-              </TextBlock>
-              <Slider Minimum="0.1" Maximum="5" SmallChange="0.05" LargeChange="0.25"
-                      Value="{Binding MouseSensitivity}" />
-
-              <TextBlock Classes="caption">
-                <Run Text="{Binding Text[opt.mouseReturnSpeed], Source={x:Static loc:Strings.Instance}}" />
-                <Run Text=": " />
-                <Run Text="{Binding MouseReturnSpeed, StringFormat={}{0:0.00} s}" />
-              </TextBlock>
-              <Slider Minimum="0.02" Maximum="0.4" SmallChange="0.01" LargeChange="0.05"
-                      Value="{Binding MouseReturnSpeed}" />
-
-              <CheckBox IsChecked="{Binding MouseInvertY}"
-                        Content="{Binding Text[opt.mouseInvertY], Source={x:Static loc:Strings.Instance}}" />
-            </StackPanel>
-
-            <TextBlock Classes="caption" TextWrapping="Wrap"
-                       Foreground="{DynamicResource WarningBrush}"
-                       Text="{Binding Text[msg.keyboardMouseDoubleInput], Source={x:Static loc:Strings.Instance}}" />
           </StackPanel>
         </HeaderedContentControl>
       </StackPanel>
@@ -115,24 +84,44 @@
           </StackPanel>
         </HeaderedContentControl>
 
+        <!--
+          Mouse look needs two numbers, not one: how far a given movement pushes the stick, and how
+          quickly the stick falls back to centre once the mouse stops. Both are shown with their
+          current value next to the caption, because a bare slider tells the user nothing.
+        -->
         <HeaderedContentControl Classes="groupBox"
-                                Header="{Binding Text[status.other], Source={x:Static loc:Strings.Instance}}">
+                                Header="{Binding Text[group.keyboardMouse], Source={x:Static loc:Strings.Instance}}">
           <StackPanel Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <Button Command="{Binding UpdateMappingDatabaseCommand}"
-                      Content="{Binding Text[action.update], Source={x:Static loc:Strings.Instance}}" />
-              <Button Command="{Binding OpenDataFolderCommand}"
-                      Content="{Binding Text[action.openDataFolder], Source={x:Static loc:Strings.Instance}}" />
-            </StackPanel>
+            <CheckBox IsChecked="{Binding KeyboardMouseEnabled}"
+                      Content="{Binding Text[opt.keyboardMouseEnabled], Source={x:Static loc:Strings.Instance}}" />
 
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBlock Classes="caption" Text="{Binding PortableModeText}" />
-              <TextBlock Classes="caption" Text="{Binding DataRoot}" TextTrimming="CharacterEllipsis" />
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
+              <TextBlock Classes="caption"
+                         Text="{Binding Text[opt.mouseSensitivity], Source={x:Static loc:Strings.Instance}}" />
+              <TextBlock Classes="caption" Text=":" />
+              <TextBlock Classes="caption" Text="{Binding MouseSensitivityText}" />
             </StackPanel>
+            <Slider Minimum="0.1" Maximum="5" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                    IsEnabled="{Binding KeyboardMouseEnabled}"
+                    Value="{Binding MouseSensitivity}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Classes="caption"
+                         Text="{Binding Text[opt.mouseReturn], Source={x:Static loc:Strings.Instance}}" />
+              <TextBlock Classes="caption" Text=":" />
+              <TextBlock Classes="caption" Text="{Binding MouseReturnSpeedText}" />
+            </StackPanel>
+            <Slider Minimum="0.02" Maximum="0.4" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                    IsEnabled="{Binding KeyboardMouseEnabled}"
+                    Value="{Binding MouseReturnSpeed}" />
+
+            <CheckBox IsEnabled="{Binding KeyboardMouseEnabled}"
+                      IsChecked="{Binding MouseInvertY}"
+                      Content="{Binding Text[opt.mouseInvertY], Source={x:Static loc:Strings.Instance}}" />
 
             <TextBlock Classes="caption" TextWrapping="Wrap"
                        Foreground="{DynamicResource WarningBrush}"
-                       Text="{Binding Text[msg.antiCheat], Source={x:Static loc:Strings.Instance}}" />
+                       Text="{Binding Text[msg.keyboardPassthrough], Source={x:Static loc:Strings.Instance}}" />
           </StackPanel>
         </HeaderedContentControl>
       </StackPanel>

@@ -30,8 +30,12 @@ public sealed partial class DeviceDiagnosticsRow : ViewModelBase
 }
 
 /// <summary>
-/// View model for the Advanced tab: global options, driver status and the raw device monitor that
-/// makes diagnosing an unknown controller possible.
+/// View model for the Advanced page: global options, driver status, keyboard and mouse tuning, and
+/// the raw device monitor that makes diagnosing an unknown controller possible.
+/// <para>
+/// Data folder, update and maintenance actions deliberately live on the About page instead: this
+/// page is for settings that change how input is read and emitted.
+/// </para>
 /// </summary>
 public sealed partial class AdvancedViewModel : ViewModelBase
 {
@@ -65,21 +69,6 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     private string _selectedLanguage = "en";
 
     [ObservableProperty]
-    private bool _keyboardMouseEnabled;
-
-    [ObservableProperty]
-    private double _mouseSensitivity = 1.0;
-
-    [ObservableProperty]
-    private double _mouseReturnSpeed = 0.08;
-
-    [ObservableProperty]
-    private bool _mouseInvertY;
-
-    /// <summary>True when the keyboard and mouse source actually started.</summary>
-    public bool IsKeyboardMouseAvailable => _state.KeyboardMouse is not null;
-
-    [ObservableProperty]
     private string _driverStatus = string.Empty;
 
     [ObservableProperty]
@@ -93,6 +82,20 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pollStatistics = string.Empty;
+
+    [ObservableProperty]
+    private bool _keyboardMouseEnabled;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MouseSensitivityText))]
+    private double _mouseSensitivity = 1.0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MouseReturnSpeedText))]
+    private double _mouseReturnSpeed = 0.08;
+
+    [ObservableProperty]
+    private bool _mouseInvertY;
 
     private bool _suppress;
 
@@ -112,9 +115,9 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         SelectedTheme = state.Config.Theme;
         SelectedLanguage = state.Config.Language;
         KeyboardMouseEnabled = state.Config.KeyboardMouseEnabled;
-        MouseSensitivity = state.KeyboardMouse?.Mouse.Sensitivity ?? state.Config.MouseSensitivity;
-        MouseReturnSpeed = state.KeyboardMouse?.Mouse.ReturnSpeed ?? state.Config.MouseReturnSpeed;
-        MouseInvertY = state.KeyboardMouse?.Mouse.InvertY ?? state.Config.MouseInvertY;
+        MouseSensitivity = state.Config.MouseSensitivity;
+        MouseReturnSpeed = state.Config.MouseReturnSpeed;
+        MouseInvertY = state.Config.MouseInvertY;
         _suppress = false;
 
         RefreshDriverStatus();
@@ -132,11 +135,11 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     /// <summary>Live raw values for every connected device.</summary>
     public ObservableCollection<DeviceDiagnosticsRow> DeviceRows { get; } = [];
 
-    /// <summary>Path of the data directory, shown so the user can find their profiles and logs.</summary>
-    public string DataRoot => PortablePaths.DataRoot;
+    /// <summary>Sensitivity formatted for the caption next to its slider.</summary>
+    public string MouseSensitivityText => MouseSensitivity.ToString("F2");
 
-    /// <summary>Whether data lives next to the executable.</summary>
-    public string PortableModeText => PortablePaths.IsPortableMode ? "Portable" : "AppData";
+    /// <summary>Return time formatted for the caption next to its slider.</summary>
+    public string MouseReturnSpeedText => $"{MouseReturnSpeed:F2} s";
 
     /// <summary>Re-reads driver installation state.</summary>
     public void RefreshDriverStatus()
@@ -206,53 +209,6 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             _state.HidHide.Refresh();
             _state.ApplyCloaking();
             RefreshDriverStatus();
-        }
-    }
-
-    /// <summary>Opens the data directory in the file manager.</summary>
-    [RelayCommand]
-    private void OpenDataFolder()
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = PortablePaths.DataRoot,
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            _state.ReportStatus($"Could not open the data folder: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Downloads the latest community controller mapping database, widening the set of pads that
-    /// auto-map perfectly.
-    /// </summary>
-    [RelayCommand]
-    private async Task UpdateMappingDatabaseAsync()
-    {
-        const string Url = "https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt";
-
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var content = await client.GetStringAsync(Url).ConfigureAwait(false);
-
-            if (content.Length < 1000)
-            {
-                _state.ReportStatus("Downloaded mapping database looks invalid; keeping the existing one.");
-                return;
-            }
-
-            await File.WriteAllTextAsync(PortablePaths.GameControllerDbFile, content).ConfigureAwait(false);
-            _state.ReportStatus("Mapping database updated. Restart UniPad to apply it.");
-        }
-        catch (Exception ex)
-        {
-            _state.ReportStatus($"Mapping database update failed: {ex.Message}");
         }
     }
 
@@ -351,6 +307,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         Strings.Instance.Language = value;
     }
 
+    /// <summary>
+    /// The raw-input sink is created at startup, so turning the source on or off only takes effect
+    /// after a restart. The setting is still stored immediately.
+    /// </summary>
     partial void OnKeyboardMouseEnabledChanged(bool value)
     {
         if (_suppress)
@@ -358,10 +318,8 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             return;
         }
 
-        // The raw input sink is created once during startup, so toggling it has to wait for the
-        // next launch rather than tearing down a source that live mappings may be reading.
         _state.Config.KeyboardMouseEnabled = value;
-        _state.ReportStatus(Strings.Get("msg.keyboardMouseRestart"));
+        _state.ReportStatus(Strings.Get("msg.restartRequired"));
     }
 
     partial void OnMouseSensitivityChanged(double value)
@@ -371,12 +329,12 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             return;
         }
 
-        var clamped = (float)Math.Clamp(value, 0.05, 10.0);
+        var clamped = (float)Math.Clamp(value, 0.1, 5.0);
         _state.Config.MouseSensitivity = clamped;
 
-        if (_state.KeyboardMouse is not null)
+        if (_state.KeyboardMouse is { } backend)
         {
-            _state.KeyboardMouse.Mouse.Sensitivity = clamped;
+            backend.Mouse.Sensitivity = clamped;
         }
     }
 
@@ -390,9 +348,9 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         var clamped = (float)Math.Clamp(value, 0.02, 0.4);
         _state.Config.MouseReturnSpeed = clamped;
 
-        if (_state.KeyboardMouse is not null)
+        if (_state.KeyboardMouse is { } backend)
         {
-            _state.KeyboardMouse.Mouse.ReturnSpeed = clamped;
+            backend.Mouse.ReturnSpeed = clamped;
         }
     }
 
@@ -405,9 +363,9 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
         _state.Config.MouseInvertY = value;
 
-        if (_state.KeyboardMouse is not null)
+        if (_state.KeyboardMouse is { } backend)
         {
-            _state.KeyboardMouse.Mouse.InvertY = value;
+            backend.Mouse.InvertY = value;
         }
     }
 
@@ -422,8 +380,7 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     {
         var devices = _state.Input.Devices.ToList();
 
-        // The synthetic source is not part of the SDL enumeration, but showing its pressed keys
-        // here is the easiest way to find the virtual-key code of an unusual key.
+        // The synthetic keyboard and mouse is not an SDL device, so it is appended by hand.
         if (_state.KeyboardMouse is { IsRunning: true } keyboardMouse)
         {
             devices.Add(keyboardMouse.Device);
