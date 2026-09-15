@@ -14,6 +14,9 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // A previous update renamed the old build aside; now that this one is running, it can go.
+        UpdateService.CleanupPreviousUpdate();
+
         // --tray suppresses the initial window, used by the autostart registry entry.
         App.StartHidden = args.Any(a =>
             string.Equals(a, "--tray", StringComparison.OrdinalIgnoreCase) ||

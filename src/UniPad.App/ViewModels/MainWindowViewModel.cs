@@ -66,6 +66,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Advanced = new AdvancedViewModel(state);
         Advanced.ThemeRequested += theme => ThemeChangeRequested?.Invoke(theme);
         About = new AboutViewModel(state);
+        // After an update the new executable is already on disk; exiting hands control to it.
+        About.RestartRequested += () => ExitRequested?.Invoke();
 
         foreach (var player in Players)
         {

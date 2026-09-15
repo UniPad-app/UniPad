@@ -152,6 +152,9 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.update"] = "Check for Updates",
         ["action.openLogs"] = "Open Logs Folder",
         ["action.openDataFolder"] = "Open Data Folder",
+        ["action.updateMappingDb"] = "Update Mapping Database",
+        ["action.restartNow"] = "Restart Now",
+        ["action.releasePage"] = "Open Release Page",
 
         ["tray.open"] = "Open UniPad",
         ["tray.toggle"] = "Enable / Disable Output",
@@ -178,6 +181,7 @@ public sealed class Strings : INotifyPropertyChanged
             + "inspiration from familiar controller configuration dialogs, but every asset, style and line "
             + "of code here is original work.",
         ["about.dataFolder"] = "Data folder",
+        ["about.maintenance"] = "Maintenance",
 
         ["opt.vibration"] = "Vibration",
         ["opt.emulateStick"] = "Emulate Left Stick with D-Pad",
@@ -213,6 +217,15 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.antiCheat"] = "Games with kernel-mode anti-cheat may reject virtual controllers. This tool is not designed to bypass any protection.",
         ["msg.keyboardMouseRestart"] = "Restart UniPad for this change to take effect.",
         ["msg.keyboardMouseDoubleInput"] = "Keystrokes still reach the game as well as the virtual pad. Unbind the keyboard controls inside the game if both respond at once.",
+        ["msg.keyboardPassthrough"] =
+            "Keystrokes still reach the game as well as the virtual pad. Unbind the keyboard controls "
+            + "inside the game if both respond at once.",
+        ["msg.restartRequired"] = "This change takes effect after a restart.",
+        ["msg.updateChecking"] = "Checking GitHub for a newer release...",
+        ["msg.upToDate"] = "UniPad is up to date",
+        ["msg.updateDownloading"] = "Downloading version",
+        ["msg.updateInstalled"] = "Update installed - restart UniPad to use it",
+        ["msg.updateFailed"] = "Update failed",
 
     };
 
@@ -284,6 +297,9 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.update"] = "بررسی به‌روزرسانی",
         ["action.openLogs"] = "باز کردن پوشه لاگ",
         ["action.openDataFolder"] = "باز کردن پوشه داده",
+        ["action.updateMappingDb"] = "به‌روزرسانی پایگاه‌داده نگاشت",
+        ["action.restartNow"] = "راه‌اندازی مجدد",
+        ["action.releasePage"] = "باز کردن صفحه انتشار",
 
         ["tray.open"] = "باز کردن UniPad",
         ["tray.toggle"] = "فعال / غیرفعال کردن خروجی",
@@ -309,6 +325,7 @@ public sealed class Strings : INotifyPropertyChanged
             "UniPad یک شبیه‌ساز نیست و هیچ کد بازی در آن وجود ندارد. چیدمان رابط کاربری از پنجره‌های آشنای "
             + "تنظیم کنترلر الهام بصری گرفته است، اما تمام دارایی‌ها، استایل‌ها و خطوط کد این برنامه اثر اصیل خودش است.",
         ["about.dataFolder"] = "پوشه داده",
+        ["about.maintenance"] = "نگهداری",
 
         ["opt.vibration"] = "لرزش",
         ["opt.emulateStick"] = "شبیه‌سازی آنالوگ چپ با دی‌پد",
@@ -344,6 +361,15 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.antiCheat"] = "بازی‌هایی با آنتی‌چیت کرنل‌مود ممکن است کنترلر مجازی را نپذیرند. این ابزار برای دور زدن هیچ محافظتی طراحی نشده است.",
         ["msg.keyboardMouseRestart"] = "برای اعمال این تغییر UniPad را دوباره اجرا کنید.",
         ["msg.keyboardMouseDoubleInput"] = "کلیدهای فشرده‌شده علاوه بر پد مجازی به خود بازی هم می‌رسند. اگر هر دو هم‌زمان واکنش نشان دادند، کنترل‌های کیبورد را داخل بازی بردارید.",
+        ["msg.keyboardPassthrough"] =
+            "کلیدها هم‌زمان به بازی و به دسته مجازی می‌رسند. اگر هر دو با هم واکنش دادند، کنترل‌های "
+            + "کیبورد را داخل خود بازی آزاد کنید.",
+        ["msg.restartRequired"] = "این تغییر پس از راه‌اندازی مجدد اعمال می‌شود.",
+        ["msg.updateChecking"] = "در حال بررسی نسخه جدید در گیت‌هاب...",
+        ["msg.upToDate"] = "UniPad به‌روز است",
+        ["msg.updateDownloading"] = "دانلود نسخه",
+        ["msg.updateInstalled"] = "به‌روزرسانی نصب شد — برنامه را دوباره اجرا کنید",
+        ["msg.updateFailed"] = "به‌روزرسانی ناموفق بود",
 
     };
 }

@@ -12,6 +12,8 @@
   <!--
     Credits are not decoration: SDL, ViGEm, HidHide, Avalonia, Serilog and the community mapping
     database all require attribution, so this page is a licence obligation as much as a UI page.
+    The maintenance box below them holds everything that is about this installation rather than
+    about input handling: version, updates, data folder and logs.
   -->
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="14" Spacing="10" MaxWidth="720" HorizontalAlignment="Left">
@@ -54,25 +56,55 @@
         </StackPanel>
       </HeaderedContentControl>
 
+      <!-- ============ Maintenance (moved here from Advanced) ============ -->
+      <HeaderedContentControl Classes="groupBox"
+                              Header="{Binding Text[about.maintenance], Source={x:Static loc:Strings.Instance}}">
+        <StackPanel Spacing="6">
+
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button Classes="accent"
+                    Command="{Binding CheckForUpdatesCommand}"
+                    Content="{Binding Text[action.update], Source={x:Static loc:Strings.Instance}}" />
+            <Button Command="{Binding UpdateMappingDatabaseCommand}"
+                    Content="{Binding Text[action.updateMappingDb], Source={x:Static loc:Strings.Instance}}" />
+            <Button Command="{Binding OpenDataFolderCommand}"
+                    Content="{Binding Text[action.openDataFolder], Source={x:Static loc:Strings.Instance}}" />
+            <Button Command="{Binding OpenLogsCommand}"
+                    Content="{Binding Text[action.openLogs], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     IsVisible="{Binding UpdateMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                     Text="{Binding UpdateMessage}" />
+
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <!-- Appears only after the new executable has actually been put in place. -->
+            <Button Classes="accent"
+                    IsVisible="{Binding RestartPending}"
+                    Command="{Binding RestartNowCommand}"
+                    Content="{Binding Text[action.restartNow], Source={x:Static loc:Strings.Instance}}" />
+            <Button IsVisible="{Binding ManualDownloadAvailable}"
+                    Command="{Binding OpenReleasePageCommand}"
+                    Content="{Binding Text[action.releasePage], Source={x:Static loc:Strings.Instance}}" />
+          </StackPanel>
+
+          <Separator />
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="caption"
+                       Text="{Binding Text[about.dataFolder], Source={x:Static loc:Strings.Instance}}" />
+            <TextBlock Classes="caption" Text="{Binding PortableModeText}" />
+            <TextBlock Classes="caption" Text="{Binding DataRoot}" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Foreground="{DynamicResource WarningBrush}"
+                     Text="{Binding Text[msg.antiCheat], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </HeaderedContentControl>
+
       <TextBlock Classes="caption" TextWrapping="Wrap" LineHeight="18"
                  Text="{Binding Text[about.disclaimer], Source={x:Static loc:Strings.Instance}}" />
-
-      <Separator />
-
-      <StackPanel Spacing="4">
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Classes="caption"
-                     Text="{Binding Text[about.dataFolder], Source={x:Static loc:Strings.Instance}}" />
-          <TextBlock Classes="caption" Text="{Binding DataRoot}" TextTrimming="CharacterEllipsis" />
-        </StackPanel>
-
-        <StackPanel Orientation="Horizontal" Spacing="4">
-          <Button Command="{Binding OpenDataFolderCommand}"
-                  Content="{Binding Text[action.openDataFolder], Source={x:Static loc:Strings.Instance}}" />
-          <Button Command="{Binding OpenLogsCommand}"
-                  Content="{Binding Text[action.openLogs], Source={x:Static loc:Strings.Instance}}" />
-        </StackPanel>
-      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </UserControl>
