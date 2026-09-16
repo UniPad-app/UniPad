@@ -40,6 +40,11 @@ public sealed class Strings : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsRightToLeft)));
+
+            // Tells the bound captions to re-read themselves. Raised before LanguageChanged so that
+            // the view models rebuild their own strings on top of an already-updated interface.
+            Text.RaiseAllChanged();
+
             LanguageChanged?.Invoke();
         }
     }
@@ -74,14 +79,35 @@ public sealed class Strings : INotifyPropertyChanged
     private Strings() => Text = new LocalizedText(this);
 
     /// <summary>Read-only indexable view over the active language table.</summary>
-    public sealed class LocalizedText
+    public sealed class LocalizedText : INotifyPropertyChanged
     {
         private readonly Strings _owner;
 
         internal LocalizedText(Strings owner) => _owner = owner;
 
+        /// <inheritdoc />
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         /// <summary>Looks up a localised string by key.</summary>
         public string this[string key] => _owner[key];
+
+        /// <summary>
+        /// Tells every binding to re-read the indexer.
+        /// <para>
+        /// The notification has to be raised here rather than on <see cref="Strings"/>: XAML binds
+        /// <c>Text[key]</c>, so the indexer belongs to this object, and since this instance is
+        /// created once and never replaced, a notification on the owner never reached the captions
+        /// that had already been resolved - they kept the previous language until the window was
+        /// recreated, which is why switching language appeared to need a restart.
+        /// </para>
+        /// </summary>
+        internal void RaiseAllChanged()
+        {
+            // "Item[]" is the name an indexer binding listens for; the empty name is the catch-all
+            // that means "every property changed", which covers both binding implementations.
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        }
     }
 
     private static readonly Dictionary<string, string> English = new(StringComparer.Ordinal)
@@ -126,6 +152,9 @@ public sealed class Strings : INotifyPropertyChanged
         ["bind.deadzone"] = "Deadzone",
         ["bind.notSet"] = "[not set]",
         ["bind.pressKey"] = "[press key]",
+        ["bind.back"] = "Back",
+        ["bind.guide"] = "Guide",
+        ["bind.start"] = "Start",
 
         ["menu.clear"] = "Clear",
         ["menu.invertAxis"] = "Invert axis",
@@ -155,6 +184,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.updateMappingDb"] = "Update Mapping Database",
         ["action.restartNow"] = "Restart Now",
         ["action.releasePage"] = "Open Release Page",
+        ["action.autoDetectAll"] = "Auto-Detect All",
 
         ["tray.open"] = "Open UniPad",
         ["tray.toggle"] = "Enable / Disable Output",
@@ -271,6 +301,9 @@ public sealed class Strings : INotifyPropertyChanged
         ["bind.deadzone"] = "ناحیه مرده",
         ["bind.notSet"] = "[تنظیم نشده]",
         ["bind.pressKey"] = "[کلید را بزنید]",
+        ["bind.back"] = "بازگشت",
+        ["bind.guide"] = "راهنما",
+        ["bind.start"] = "شروع",
 
         ["menu.clear"] = "پاک کردن",
         ["menu.invertAxis"] = "معکوس کردن محور",
@@ -300,6 +333,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.updateMappingDb"] = "به‌روزرسانی پایگاه‌داده نگاشت",
         ["action.restartNow"] = "راه‌اندازی مجدد",
         ["action.releasePage"] = "باز کردن صفحه انتشار",
+        ["action.autoDetectAll"] = "شناسایی خودکار همه",
 
         ["tray.open"] = "باز کردن UniPad",
         ["tray.toggle"] = "فعال / غیرفعال کردن خروجی",

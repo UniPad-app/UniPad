@@ -74,9 +74,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             AllTabs.Add(new TabDescriptor(player.Header, player));
         }
 
-        // Tab headers are plain strings captured at construction time, so they have to be rebuilt
-        // when the user switches language.
-        Strings.Instance.LanguageChanged += RebuildTabHeaders;
+        // Captions produced in code rather than bound - tab headers, the device picker entries and
+        // the bind button captions - have to be rebuilt when the user switches language.
+        Strings.Instance.LanguageChanged += OnLanguageChanged;
 
         SelectedProfile = state.ActiveProfileName;
         foreach (var name in state.Store.ListProfiles())
@@ -174,10 +174,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private void OnStatusMessage(string message) => StatusText = message;
 
     /// <summary>
-    /// Replaces every tab header in place after a language change. The collection is rebuilt rather
-    /// than mutated per item because <see cref="TabDescriptor"/> is an immutable record.
+    /// Rebuilds every caption that was produced in code after a language change.
+    /// <para>
+    /// The bound captions refresh themselves now, but strings that were formatted once and stored
+    /// would otherwise keep the previous language: the tab headers, the entries of each device
+    /// picker, the "[not set]" text on every bind button, the banner text and the status summary.
+    /// The tab collection is rebuilt rather than mutated per item because
+    /// <see cref="TabDescriptor"/> is an immutable record.
+    /// </para>
     /// </summary>
-    private void RebuildTabHeaders()
+    private void OnLanguageChanged()
     {
         var selected = SelectedTabIndex;
 
@@ -188,6 +194,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         SelectedTabIndex = Math.Clamp(selected, 0, AllTabs.Count - 1);
+
+        foreach (var player in Players)
+        {
+            // RefreshDevices also refreshes that player's status line.
+            player.RefreshDevices();
+            player.RefreshAllBinds();
+        }
+
+        RefreshBanners();
         UpdateConnectedSummary();
     }
 

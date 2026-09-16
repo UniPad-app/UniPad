@@ -76,12 +76,18 @@
       <HeaderedContentControl Grid.Row="0" Grid.Column="1" Classes="groupBox" MinHeight="45"
                               VerticalAlignment="Stretch"
                               Header="{Binding Text[group.misc], Source={x:Static loc:Strings.Instance}}">
-        <Grid ColumnDefinitions="34,*,40,*,34,*" VerticalAlignment="Center">
-          <TextBlock Grid.Column="0" Text="Back" Margin="2,0,4,0" />
+        <!-- Label cells are content-sized here rather than fixed at 34/40/34: the Persian captions
+             are wider than the English ones, and this box shares its column scheme with no other,
+             so nothing drifts out of alignment by letting them size themselves. -->
+        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0" Margin="2,0,4,0"
+                     Text="{Binding Text[bind.back], Source={x:Static loc:Strings.Instance}}" />
           <ContentControl Grid.Column="1" Content="{Binding BindBack}" Margin="1" />
-          <TextBlock Grid.Column="2" Text="Guide" Margin="8,0,4,0" />
+          <TextBlock Grid.Column="2" Margin="8,0,4,0"
+                     Text="{Binding Text[bind.guide], Source={x:Static loc:Strings.Instance}}" />
           <ContentControl Grid.Column="3" Content="{Binding BindGuide}" Margin="1" />
-          <TextBlock Grid.Column="4" Text="Start" Margin="8,0,4,0" />
+          <TextBlock Grid.Column="4" Margin="8,0,4,0"
+                     Text="{Binding Text[bind.start], Source={x:Static loc:Strings.Instance}}" />
           <ContentControl Grid.Column="5" Content="{Binding BindStart}" Margin="1" />
         </Grid>
       </HeaderedContentControl>
