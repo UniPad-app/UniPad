@@ -6,6 +6,7 @@ using UniPad.App.Services;
 using UniPad.Core.Input;
 using UniPad.Core.Mapping;
 using UniPad.Core.Output;
+using System.Globalization;
 
 namespace UniPad.App.ViewModels;
 
@@ -56,15 +57,19 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     private int _vibrationStrength;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LeftDeadzoneText))]
     private float _leftDeadzone;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LeftRangeText))]
     private float _leftRange;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RightDeadzoneText))]
     private float _rightDeadzone;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RightRangeText))]
     private float _rightRange;
 
     // ---- Live preview values, refreshed at 60 Hz ----
@@ -108,6 +113,10 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
         PullFromMapping();
         RefreshDevices();
+
+        // The four slider captions are built in code, so they have to be rebuilt by hand when the
+        // language changes; the bindings themselves cannot see it.
+        Strings.Instance.LanguageChanged += OnLanguageChanged;
     }
 
     /// <summary>The underlying runtime mapping this view model edits in place.</summary>
@@ -118,6 +127,40 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
     /// <summary>Tab header text.</summary>
     public string Header => $"{Strings.Get("tab.player")} {PlayerNumber}";
+
+    /// <summary>Caption above the left stick dead zone slider, label and value in one string.</summary>
+    public string LeftDeadzoneText => FormatPercent("bind.deadzone", LeftDeadzone);
+
+    /// <summary>Caption above the left stick range slider.</summary>
+    public string LeftRangeText => FormatPercent("bind.range", LeftRange);
+
+    /// <summary>Caption above the right stick dead zone slider.</summary>
+    public string RightDeadzoneText => FormatPercent("bind.deadzone", RightDeadzone);
+
+    /// <summary>Caption above the right stick range slider.</summary>
+    public string RightRangeText => FormatPercent("bind.range", RightRange);
+
+    /// <summary>
+    /// Builds a "label: 15%" caption as a single string.
+    /// <para>
+    /// Composed here rather than from several XAML runs: separate runs are reordered independently
+    /// under the bidirectional algorithm, which pushed the per cent sign to the far end of the line
+    /// and left the digits behind. One string keeps the number and its sign together. The value is
+    /// formatted with the invariant culture so the digits stay Latin in both languages, matching
+    /// the key names shown on the bind buttons.
+    /// </para>
+    /// </summary>
+    private static string FormatPercent(string key, float value) =>
+        string.Format(CultureInfo.InvariantCulture, "{0}: {1:0}%", Strings.Get(key), value * 100f);
+
+    private void OnLanguageChanged()
+    {
+        OnPropertyChanged(nameof(Header));
+        OnPropertyChanged(nameof(LeftDeadzoneText));
+        OnPropertyChanged(nameof(LeftRangeText));
+        OnPropertyChanged(nameof(RightDeadzoneText));
+        OnPropertyChanged(nameof(RightRangeText));
+    }
 
     /// <summary>Available input devices plus the "none" entry.</summary>
     public ObservableCollection<DeviceOption> Devices { get; } = [];

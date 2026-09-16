@@ -88,6 +88,10 @@
           Mouse look needs two numbers, not one: how far a given movement pushes the stick, and how
           quickly the stick falls back to centre once the mouse stops. Both are shown with their
           current value next to the caption, because a bare slider tells the user nothing.
+
+          Only the sliders are pinned to left-to-right: minimum has to stay on the left because the
+          track is a magnitude, not text. The captions keep the direction of the active language,
+          which the surrounding page already provides.
         -->
         <HeaderedContentControl Classes="groupBox"
                                 Header="{Binding Text[group.keyboardMouse], Source={x:Static loc:Strings.Instance}}">
@@ -102,16 +106,18 @@
               <TextBlock Classes="caption" Text="{Binding MouseSensitivityText}" />
             </StackPanel>
             <Slider Minimum="0.1" Maximum="5" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                    FlowDirection="LeftToRight"
                     IsEnabled="{Binding KeyboardMouseEnabled}"
                     Value="{Binding MouseSensitivity}" />
 
             <StackPanel Orientation="Horizontal" Spacing="4">
               <TextBlock Classes="caption"
-                         Text="{Binding Text[opt.mouseReturn], Source={x:Static loc:Strings.Instance}}" />
+                         Text="{Binding Text[opt.mouseReturnSpeed], Source={x:Static loc:Strings.Instance}}" />
               <TextBlock Classes="caption" Text=":" />
               <TextBlock Classes="caption" Text="{Binding MouseReturnSpeedText}" />
             </StackPanel>
             <Slider Minimum="0.02" Maximum="0.4" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                    FlowDirection="LeftToRight"
                     IsEnabled="{Binding KeyboardMouseEnabled}"
                     Value="{Binding MouseReturnSpeed}" />
 

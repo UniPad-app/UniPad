@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Avalonia.Media;
 
 namespace UniPad.App.Localization;
 
@@ -40,6 +41,7 @@ public sealed class Strings : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsRightToLeft)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TextFlowDirection)));
 
             // Tells the bound captions to re-read themselves. Raised before LanguageChanged so that
             // the view models rebuild their own strings on top of an already-updated interface.
@@ -51,6 +53,19 @@ public sealed class Strings : INotifyPropertyChanged
 
     /// <summary>True when the active language is written right to left.</summary>
     public bool IsRightToLeft => _language == "fa";
+
+    /// <summary>
+    /// Base direction for text runs, bound from XAML on individual text leaves.
+    /// <para>
+    /// Kept separate from the layout direction on purpose: a panel whose columns must not swap is
+    /// pinned to left-to-right, but the captions inside it still have to be laid out with the
+    /// language's own base direction. Without that, a left-to-right base direction resolves the
+    /// zero-width non-joiner inside Persian words as a neutral boundary, splits the word into
+    /// separate runs and orders them the wrong way round.
+    /// </para>
+    /// </summary>
+    public FlowDirection TextFlowDirection =>
+        IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
     /// <summary>Looks up a string by key, falling back to English and then to the key itself.</summary>
     public string this[string key]
@@ -230,6 +245,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.mouseReturnSpeed"] = "Return to centre",
         ["opt.mouseInvertY"] = "Invert mouse Y",
 
+        ["unit.seconds"] = "s",
+
         ["status.emulatedDevices"] = "Emulated Devices",
         ["status.other"] = "Other",
         ["status.connected"] = "Connected",
@@ -375,8 +392,10 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.outputEnabled"] = "خروجی فعال",
         ["opt.keyboardMouseEnabled"] = "فعال‌سازی ورودی کیبورد و ماوس",
         ["opt.mouseSensitivity"] = "حساسیت ماوس",
-        ["opt.mouseReturnSpeed"] = "بازگشت به مرکز",
+        ["opt.mouseReturnSpeed"] = "زمان بازگشت به مرکز",
         ["opt.mouseInvertY"] = "معکوس کردن محور عمودی ماوس",
+
+        ["unit.seconds"] = "ثانیه",
 
         ["status.emulatedDevices"] = "دستگاه‌های شبیه‌سازی‌شده",
         ["status.other"] = "سایر",

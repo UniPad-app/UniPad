@@ -8,7 +8,8 @@
              mc:Ignorable="d"
              d:DesignWidth="900" d:DesignHeight="560"
              x:Class="UniPad.App.Views.PlayerConfigView"
-             x:DataType="vm:PlayerConfigViewModel">
+             x:DataType="vm:PlayerConfigViewModel"
+             FlowDirection="LeftToRight">
 
   <!--
     Header row with the device and output pickers, then a body laid out as a shoulder and system
@@ -20,7 +21,27 @@
     label cell followed by a stretching bind cell, twice over. Because the widths are fixed rather
     than content-sized, the bind buttons of Shoulders, Face Buttons, the stick groups and the D-Pad
     all land on the same two vertical lines even though they live in separate boxes.
+
+    The panel is pinned to left-to-right. The diagram, the stick previews and the label/bind column
+    scheme all describe physical hardware - the left stick is on the left of a real pad whatever
+    language the interface is in - so mirroring the whole panel makes it read as a different device.
   -->
+
+  <UserControl.Styles>
+    <!--
+      Layout direction and text direction are pinned separately. The panel above stays left to
+      right, but each text leaf takes the base direction of the active language: with a left-to-
+      right base direction the zero-width non-joiner inside Persian words resolves as a neutral
+      boundary, which splits a word into separate runs and lays them out backwards ("Defaults"
+      arrived as three reversed pieces). Alignment is forced to the left so the captions keep the
+      positions the column scheme gives them and do not jump to the right edge of their cells.
+    -->
+    <Style Selector="TextBlock">
+      <Setter Property="FlowDirection" Value="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}" />
+      <Setter Property="TextAlignment" Value="Left" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
 
     <!-- ============ Header: connect toggle, device, output type ============ -->
@@ -135,20 +156,16 @@
                 <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindLStickModifier}" Margin="1" />
               </Grid>
 
+              <!-- Label and value come from the view model as one string: separate runs are
+                   reordered independently, which separated the per cent sign from its digits. -->
               <StackPanel Spacing="1">
-                <TextBlock Classes="caption">
-                  <Run Text="{Binding Text[bind.deadzone], Source={x:Static loc:Strings.Instance}}" />
-                  <Run Text=": " />
-                  <Run Text="{Binding LeftDeadzone, StringFormat={}{0:P0}}" />
-                </TextBlock>
+                <TextBlock Classes="caption" HorizontalAlignment="Left"
+                           Text="{Binding LeftDeadzoneText}" />
                 <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
                         Value="{Binding LeftDeadzone}" />
 
-                <TextBlock Classes="caption">
-                  <Run Text="{Binding Text[bind.range], Source={x:Static loc:Strings.Instance}}" />
-                  <Run Text=": " />
-                  <Run Text="{Binding LeftRange, StringFormat={}{0:P0}}" />
-                </TextBlock>
+                <TextBlock Classes="caption" HorizontalAlignment="Left"
+                           Text="{Binding LeftRangeText}" />
                 <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
                         Value="{Binding LeftRange}" />
               </StackPanel>
@@ -269,19 +286,13 @@
               </Grid>
 
               <StackPanel Spacing="1">
-                <TextBlock Classes="caption">
-                  <Run Text="{Binding Text[bind.deadzone], Source={x:Static loc:Strings.Instance}}" />
-                  <Run Text=": " />
-                  <Run Text="{Binding RightDeadzone, StringFormat={}{0:P0}}" />
-                </TextBlock>
+                <TextBlock Classes="caption" HorizontalAlignment="Left"
+                           Text="{Binding RightDeadzoneText}" />
                 <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
                         Value="{Binding RightDeadzone}" />
 
-                <TextBlock Classes="caption">
-                  <Run Text="{Binding Text[bind.range], Source={x:Static loc:Strings.Instance}}" />
-                  <Run Text=": " />
-                  <Run Text="{Binding RightRange, StringFormat={}{0:P0}}" />
-                </TextBlock>
+                <TextBlock Classes="caption" HorizontalAlignment="Left"
+                           Text="{Binding RightRangeText}" />
                 <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
                         Value="{Binding RightRange}" />
               </StackPanel>
@@ -290,7 +301,7 @@
 
         </StackPanel>
       </ScrollViewer>
-      
+
       <!-- ============ Overlay: XInput limit message, centered in the whole panel ============ -->
       <Border Grid.Row="0" Grid.RowSpan="2"
               Grid.Column="0" Grid.ColumnSpan="3"

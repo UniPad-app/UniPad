@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using UniPad.App.Localization;
@@ -121,6 +122,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         _suppress = false;
 
         RefreshDriverStatus();
+
+        // The unit suffix and the paragraph direction both depend on the interface language, and
+        // neither is a bound string, so they have to be nudged by hand when it changes.
+        Strings.Instance.LanguageChanged += OnLanguageChanged;
     }
 
     /// <summary>Selectable polling rates.</summary>
@@ -139,7 +144,16 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     public string MouseSensitivityText => MouseSensitivity.ToString("F2");
 
     /// <summary>Return time formatted for the caption next to its slider.</summary>
-    public string MouseReturnSpeedText => $"{MouseReturnSpeed:F2} s";
+    public string MouseReturnSpeedText => $"{MouseReturnSpeed:F2} {Strings.Get("unit.seconds")}";
+
+    /// <summary>
+    /// Reading direction for wrapped prose inside this page. The keyboard and mouse box itself
+    /// stays left-to-right so its sliders keep their minimum on the left, but a Persian paragraph
+    /// still needs its own base direction or the trailing punctuation lands on the wrong end of
+    /// the line.
+    /// </summary>
+    public FlowDirection ParagraphFlowDirection =>
+        Strings.Instance.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
     /// <summary>Re-reads driver installation state.</summary>
     public void RefreshDriverStatus()
@@ -371,6 +385,13 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
     /// <summary>Raised when the user picks a different theme.</summary>
     public event Action<string>? ThemeRequested;
+
+    /// <summary>Re-reads the captions that are formatted in code rather than bound.</summary>
+    private void OnLanguageChanged()
+    {
+        OnPropertyChanged(nameof(MouseReturnSpeedText));
+        OnPropertyChanged(nameof(ParagraphFlowDirection));
+    }
 
     /// <summary>
     /// Refreshes the raw device monitor. Called from the UI timer at a reduced rate, since string
