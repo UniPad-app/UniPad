@@ -22,30 +22,22 @@
     than content-sized, the bind buttons of Shoulders, Face Buttons, the stick groups and the D-Pad
     all land on the same two vertical lines even though they live in separate boxes.
 
-    The panel is pinned to left-to-right. The diagram, the stick previews and the label/bind column
-    scheme all describe physical hardware - the left stick is on the left of a real pad whatever
-    language the interface is in - so mirroring the whole panel makes it read as a different device.
+    Direction is decided per row rather than for the panel as a whole. The panel is pinned to
+    left-to-right because the body describes physical hardware: the left stick is on the left of a
+    real pad whatever language the interface is in, so mirroring the diagram and the label/bind
+    columns makes the panel read as a different device. The header and the action row carry no such
+    meaning - they are ordinary form rows - so they follow the language and mirror in Persian.
   -->
-
-  <UserControl.Styles>
-    <!--
-      Layout direction and text direction are pinned separately. The panel above stays left to
-      right, but each text leaf takes the base direction of the active language: with a left-to-
-      right base direction the zero-width non-joiner inside Persian words resolves as a neutral
-      boundary, which splits a word into separate runs and lays them out backwards ("Defaults"
-      arrived as three reversed pieces). Alignment is forced to the left so the captions keep the
-      positions the column scheme gives them and do not jump to the right edge of their cells.
-    -->
-    <Style Selector="TextBlock">
-      <Setter Property="FlowDirection" Value="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}" />
-      <Setter Property="TextAlignment" Value="Left" />
-    </Style>
-  </UserControl.Styles>
-
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
 
     <!-- ============ Header: connect toggle, device, output type ============ -->
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+    <!--
+      Mirrored with the language: the connect toggle moves to the right edge, the output type to
+      the left. Only the direction is bound, so the columns keep their own order and nothing has to
+      be rewritten per language.
+    -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6"
+          FlowDirection="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}">
       <CheckBox Grid.Column="0"
                 IsChecked="{Binding IsEnabled}"
                 Content="{Binding Text[player.connect], Source={x:Static loc:Strings.Instance}}"
@@ -55,7 +47,14 @@
                               Classes="groupBox"
                               Header="{Binding Text[player.inputDevice], Source={x:Static loc:Strings.Instance}}">
         <Grid ColumnDefinitions="*,Auto">
+          <!--
+            The list itself stays left-to-right. Device names come from the driver and are Latin,
+            and a right-to-left base direction leaves the closing bracket of "Twin USB Joystick (0)"
+            as a trailing neutral, which the bidirectional algorithm resolves to the paragraph
+            direction and moves to the far side of the name.
+          -->
           <ComboBox Grid.Column="0"
+                    FlowDirection="LeftToRight"
                     ItemsSource="{Binding Devices}"
                     SelectedItem="{Binding SelectedDevice}"
                     HorizontalAlignment="Stretch" />
@@ -69,7 +68,9 @@
       <HeaderedContentControl Grid.Column="2"
                               Classes="groupBox"
                               Header="{Binding Text[player.controllerType], Source={x:Static loc:Strings.Instance}}">
-        <ComboBox ItemsSource="{Binding OutputTypes}"
+        <!-- Xbox360 and DualShock4 are product names, not translated text: kept left-to-right. -->
+        <ComboBox FlowDirection="LeftToRight"
+                  ItemsSource="{Binding OutputTypes}"
                   SelectedItem="{Binding OutputType}"
                   MinWidth="120" />
       </HeaderedContentControl>
@@ -77,6 +78,23 @@
 
     <!-- ============ Body: shoulder strip, then sticks | diagram | buttons ============ -->
     <Grid Grid.Row="1" ColumnDefinitions="228,*,228" RowDefinitions="Auto,*">
+
+      <Grid.Styles>
+        <!--
+          Scoped to the body on purpose. The columns here stay left to right, but each text leaf
+          takes the base direction of the active language: with a left-to-right base direction the
+          zero-width non-joiner inside Persian words resolves as a neutral boundary, which splits a
+          word into separate runs and lays them out backwards. Alignment is forced to the left so
+          the captions keep the positions the column scheme gives them.
+
+          The header and action rows are outside this scope. They inherit their direction from the
+          row instead, which lets the pickers there opt out with a plain FlowDirection of their own.
+        -->
+        <Style Selector="TextBlock">
+          <Setter Property="FlowDirection" Value="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}" />
+          <Setter Property="TextAlignment" Value="Left" />
+        </Style>
+      </Grid.Styles>
 
       <!--
         Top strip. All three boxes sit in the same Auto row and stretch vertically, so the row
@@ -323,7 +341,10 @@
     </Grid>
 
     <!-- ============ Actions on the left, per-player options on the right ============ -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+    <!-- Mirrored with the language as well: in Persian the action buttons run from the right edge
+         and the per-player options sit on the left, matching the reading order of the captions. -->
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0"
+          FlowDirection="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}">
       <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
         <Button Classes="accent"
                 Command="{Binding AutoMapCommand}"

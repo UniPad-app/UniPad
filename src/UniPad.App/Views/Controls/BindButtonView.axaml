@@ -12,6 +12,9 @@
   <!--
     A single bind button. Left click captures, right click opens the option menu, middle click
     clears - matching the interaction model users already know from yuzu.
+
+    The button itself keeps the direction of the panel it sits in: its caption is a hardware name
+    such as "Axis 2+", where the trailing sign has to stay next to the axis number.
   -->
   <Button x:Name="PART_Button"
           Classes="bind"
@@ -21,7 +24,26 @@
           ToolTip.Tip="{Binding DisplayText}">
 
     <Button.ContextMenu>
-      <ContextMenu>
+      <!--
+        The menu follows the language rather than the panel. A context menu opens in its own popup
+        but inherits direction from the control it belongs to, and the panel is pinned to
+        left-to-right so the diagram and the bind columns describe real hardware. Menu items are
+        ordinary sentences, and a left-to-right base direction broke them twice over: the
+        zero-width non-joiner inside a Persian word resolved as a neutral boundary and the word was
+        laid out in reversed pieces, and the trailing ellipsis of "Set threshold..." jumped to the
+        far left because a trailing neutral takes the paragraph direction.
+
+        Alignment is Start, not Left: it means the leading edge in whichever direction is active,
+        so the labels hug the right edge in Persian and the left edge in English without a second
+        binding.
+      -->
+      <ContextMenu FlowDirection="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}">
+        <ContextMenu.Styles>
+          <Style Selector="MenuItem /template/ TextBlock">
+            <Setter Property="TextAlignment" Value="Start" />
+          </Style>
+        </ContextMenu.Styles>
+
         <MenuItem Header="{Binding Text[menu.clear], Source={x:Static loc:Strings.Instance}}"
                   Command="{Binding ClearCommand}" />
         <Separator />
