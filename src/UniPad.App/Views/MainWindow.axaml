@@ -93,11 +93,24 @@
     </Grid>
 
     <!-- ============ Status strip ============ -->
+    <!--
+      The right-hand half of the strip belongs to whichever category is selected. Controls and
+      About get the summary - how many sources are connected, how many pads are live - because that
+      is what those pages are about. Advanced gets the diagnostics reading instead, and only while
+      it is selected: the reading is refreshed by the UI timer while that page is visible, so shown
+      anywhere else it would be a measurement that has quietly stopped being taken. It used to be
+      shown everywhere, which meant it was blank until the page was first opened and then froze at
+      its last value for the rest of the session.
+    -->
     <Border Grid.Row="2" Classes="statusBar">
       <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Grid.Column="0" Classes="caption" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
-        <TextBlock Grid.Column="1" Classes="caption" Text="{Binding ConnectedSummary}" Margin="12,0" />
-        <TextBlock Grid.Column="2" Classes="caption" Text="{Binding Advanced.PollStatistics}" />
+        <TextBlock Grid.Column="1" Classes="caption" Margin="12,0"
+                   IsVisible="{Binding !IsAdvancedCategory}"
+                   Text="{Binding ConnectedSummary}" />
+        <TextBlock Grid.Column="2" Classes="caption" Margin="12,0"
+                   IsVisible="{Binding IsAdvancedCategory}"
+                   Text="{Binding Advanced.PollStatistics}" />
       </Grid>
     </Border>
 

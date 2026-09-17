@@ -275,7 +275,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private void UpdateConnectedSummary()
     {
-        var connected = _state.Input.Devices.Count();
+        // Counted through AppState so this figure and the one in the diagnostics line agree.
+        var connected = _state.InputSourceCount;
         var active = Players.Count(p => p.IsEnabled && _state.Output.IsPadConnected(p.Mapping.Index));
 
         // Both counts are isolated: "1/8" was being split around the slash in a right-to-left line.
@@ -516,6 +517,22 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             player.RefreshDevices();
             player.PullFromMapping();
+        }
+    }
+
+    /// <summary>
+    /// Fills the diagnostics line the moment Advanced is selected.
+    /// <para>
+    /// The UI timer refreshes it at roughly 6 Hz and only while that category is visible, so
+    /// without this the page would open showing either nothing at all or the reading from the last
+    /// time it was open, for a sixth of a second.
+    /// </para>
+    /// </summary>
+    partial void OnSelectedCategoryIndexChanged(int value)
+    {
+        if (value == 1)
+        {
+            Advanced.UpdateDiagnostics();
         }
     }
 }

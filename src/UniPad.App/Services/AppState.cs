@@ -93,6 +93,19 @@ public sealed class AppState : IDisposable
     /// <summary>Synthetic keyboard and mouse source, or null when the feature is disabled.</summary>
     public KeyboardMouseBackend? KeyboardMouse { get; }
 
+    /// <summary>
+    /// Number of sources a player can be mapped to: every SDL device, plus the synthetic keyboard
+    /// and mouse while it is running.
+    /// <para>
+    /// The count lives here because two places report it - the summary in the status strip and the
+    /// diagnostics line on the Advanced page - and they had drifted apart: one included the
+    /// keyboard and mouse and the other did not, so the same word appeared twice on one line with
+    /// two different numbers behind it.
+    /// </para>
+    /// </summary>
+    public int InputSourceCount =>
+        Input.Devices.Count() + (KeyboardMouse is { IsRunning: true } ? 1 : 0);
+
     /// <summary>Virtual pad output manager.</summary>
     public OutputManager Output { get; }
 

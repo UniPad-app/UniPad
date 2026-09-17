@@ -460,25 +460,13 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         // to change; they sit on screen until the page is rebuilt.
         RefreshDriverStatus();
 
-        // The status bar shows the poll statistics the whole time, but UpdateDiagnostics only runs
-        // while the Advanced page is the visible category, so this line would otherwise keep the
-        // previous language until the page was opened again.
+        // The line is only on screen while Advanced is the selected category, but it is rebuilt
+        // here as well so re-opening the page never shows a caption in the previous language.
         RefreshPollStatistics();
     }
 
     /// <summary>Rebuilds the poll statistics line without touching the device monitor rows.</summary>
-    public void RefreshPollStatistics()
-    {
-        var devices = _state.Input.Devices.Count();
-
-        // The synthetic keyboard and mouse is not an SDL device and is counted separately.
-        if (_state.KeyboardMouse is { IsRunning: true })
-        {
-            devices++;
-        }
-
-        PollStatistics = FormatPollStatistics(devices);
-    }
+    public void RefreshPollStatistics() => PollStatistics = FormatPollStatistics(_state.InputSourceCount);
 
     /// <summary>
     /// Builds the "Poll: 1000 Hz | Cycle: 18 us | Devices: 3" line.
