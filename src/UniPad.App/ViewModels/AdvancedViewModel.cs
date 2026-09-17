@@ -156,7 +156,14 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     public FlowDirection ParagraphFlowDirection =>
         Strings.Instance.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
-    /// <summary>Re-reads driver installation state.</summary>
+    /// <summary>
+    /// Re-reads driver installation state.
+    /// <para>
+    /// Both lines are composed from keys rather than written out, and the parenthetical detail -
+    /// a driver error, a count of hidden devices - is isolated so it stays in one piece next to
+    /// its sentence in a right-to-left interface.
+    /// </para>
+    /// </summary>
     public void RefreshDriverStatus()
     {
         var vigem = DriverBootstrapper.GetViGEmState();
@@ -164,19 +171,26 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
         DriverStatus = vigem switch
         {
-            DriverState.Installed when _state.Output.IsDriverAvailable => "ViGEmBus: installed and connected",
-            DriverState.Installed => $"ViGEmBus: installed but unreachable ({_state.Output.DriverError})",
-            DriverState.Missing => "ViGEmBus: not installed",
-            _ => "ViGEmBus: state unknown",
+            DriverState.Installed when _state.Output.IsDriverAvailable =>
+                Strings.Get("status.vigemConnected"),
+            DriverState.Installed =>
+                $"{Strings.Get("status.vigemUnreachable")} {Strings.Isolate($"({_state.Output.DriverError})")}",
+            DriverState.Missing => Strings.Get("status.vigemMissing"),
+            _ => Strings.Get("status.vigemUnknown"),
         };
 
         var hidHide = DriverBootstrapper.GetHidHideState();
         IsHidHideMissing = hidHide != DriverState.Installed;
+
         HidHideStatus = hidHide switch
         {
-            DriverState.Installed => $"HidHide: installed ({_state.HidHide.HiddenPaths.Count} device(s) hidden)",
-            DriverState.Missing => "HidHide: not installed (optional but recommended)",
-            _ => "HidHide: state unknown",
+            DriverState.Installed =>
+                $"{Strings.Get("status.hidHideInstalled")} " +
+                Strings.Isolate(
+                    $"({_state.HidHide.HiddenPaths.Count.ToString(CultureInfo.InvariantCulture)} " +
+                    $"{Strings.Get("status.hiddenDevices")})"),
+            DriverState.Missing => Strings.Get("status.hidHideMissing"),
+            _ => Strings.Get("status.hidHideUnknown"),
         };
     }
 
@@ -187,15 +201,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     [RelayCommand]
     private async Task InstallViGEmAsync()
     {
-        var progress = new Progress<string>(_state.ReportStatus);
-
-        var result = await DriverBootstrapper.EnsureInstalledAsync(
+        var result = await InstallDriverAsync(
             DriverBootstrapper.ViGEmResourceName,
             DriverBootstrapper.ViGEmDownloadUrl,
-            "ViGEmBus",
-            progress).ConfigureAwait(true);
-
-        _state.ReportStatus(result.Message);
+            "ViGEmBus").ConfigureAwait(true);
 
         if (result.Succeeded)
         {
@@ -209,15 +218,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     [RelayCommand]
     private async Task InstallHidHideAsync()
     {
-        var progress = new Progress<string>(_state.ReportStatus);
-
-        var result = await DriverBootstrapper.EnsureInstalledAsync(
+        var result = await InstallDriverAsync(
             DriverBootstrapper.HidHideResourceName,
             DriverBootstrapper.HidHideDownloadUrl,
-            "HidHide",
-            progress).ConfigureAwait(true);
-
-        _state.ReportStatus(result.Message);
+            "HidHide").ConfigureAwait(true);
 
         if (result.Succeeded)
         {
@@ -225,6 +229,65 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             _state.ApplyCloaking();
             RefreshDriverStatus();
         }
+    }
+
+    /// <summary>
+    /// Runs an installation and narrates it in the status bar.
+    /// <para>
+    /// The bootstrapper reports a stage and an outcome rather than finished sentences, because it
+    /// sits in the core and has no string table; its English text still travels along as the
+    /// fallback and ends up in the log. Reporting keys means a line still on screen follows a
+    /// later language change, and the driver name is isolated so it survives a right-to-left line.
+    /// </para>
+    /// </summary>
+    private async Task<DriverInstallResult> InstallDriverAsync(
+        string resourceName,
+        string downloadUrl,
+        string driverName)
+    {
+        var progress = new Progress<DriverInstallProgress>(report =>
+        {
+            var (key, english) = report.Phase switch
+            {
+                DriverInstallPhase.Downloading =>
+                    ("msg.driverDownloading", $"Downloading {report.DriverName}..."),
+                DriverInstallPhase.InstallingElevated =>
+                    ("msg.driverInstallingElevated",
+                        $"Installing {report.DriverName} (approve the Windows prompt)..."),
+                _ => ("msg.driverInstalling", $"Installing {report.DriverName}..."),
+            };
+
+            _state.ReportStatus(key, report.DriverName, english);
+        });
+
+        var result = await DriverBootstrapper.EnsureInstalledAsync(
+            resourceName,
+            downloadUrl,
+            driverName,
+            progress).ConfigureAwait(true);
+
+        var outcomeKey = result.Outcome switch
+        {
+            DriverInstallOutcome.Installed => "msg.driverInstalled",
+            DriverInstallOutcome.InstalledRestartRequired => "msg.driverInstalledRestart",
+            DriverInstallOutcome.Cancelled => "msg.driverCancelled",
+            DriverInstallOutcome.NotSupported => "msg.driverNotSupported",
+            DriverInstallOutcome.NotBundled => "msg.driverNotBundled",
+            DriverInstallOutcome.DownloadIncomplete => "msg.driverDownloadIncomplete",
+            DriverInstallOutcome.InstallerMissing => "msg.driverInstallerMissing",
+            DriverInstallOutcome.InstallerTimedOut => "msg.driverTimedOut",
+            _ => "msg.driverInstallFailed",
+        };
+
+        // The unsupported-host message names no driver, so it stands alone.
+        string? detail = result.Outcome == DriverInstallOutcome.NotSupported
+            ? null
+            : result.Detail.Length == 0
+                ? result.DriverName
+                : $"{result.DriverName} - {result.Detail}";
+
+        _state.ReportStatus(outcomeKey, detail, result.Message);
+        return result;
     }
 
     partial void OnHidePhysicalControllersChanged(bool value)
@@ -392,6 +455,10 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(MouseReturnSpeedText));
         OnPropertyChanged(nameof(ParagraphFlowDirection));
+
+        // The two driver lines are built from keys rather than bound, so nothing would tell them
+        // to change; they sit on screen until the page is rebuilt.
+        RefreshDriverStatus();
 
         // The status bar shows the poll statistics the whole time, but UpdateDiagnostics only runs
         // while the Advanced page is the visible category, so this line would otherwise keep the

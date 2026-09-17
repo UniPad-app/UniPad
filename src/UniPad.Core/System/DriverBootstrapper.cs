@@ -16,11 +16,78 @@ public enum DriverState
     Unknown,
 }
 
+/// <summary>Stage an installation has reached, reported while it runs.</summary>
+public enum DriverInstallPhase
+{
+    /// <summary>Fetching the official installer because nothing is bundled.</summary>
+    Downloading,
+
+    /// <summary>Running a bundled installer.</summary>
+    Installing,
+
+    /// <summary>Running a downloaded installer, which raises the Windows elevation prompt.</summary>
+    InstallingElevated,
+}
+
+/// <summary>How an installation attempt ended.</summary>
+/// <remarks>
+/// Reported as a value rather than left implicit in the message text, because this layer has no
+/// string table and the interface has to be able to say the same thing in another language.
+/// </remarks>
+public enum DriverInstallOutcome
+{
+    /// <summary>The driver is installed and usable now.</summary>
+    Installed,
+
+    /// <summary>Installed, but Windows wants a reboot before the driver loads.</summary>
+    InstalledRestartRequired,
+
+    /// <summary>The user dismissed the elevation prompt or the installer.</summary>
+    Cancelled,
+
+    /// <summary>Driver installation was attempted on a host that is not Windows.</summary>
+    NotSupported,
+
+    /// <summary>This build carries no bundled installer for the driver.</summary>
+    NotBundled,
+
+    /// <summary>The download finished but is far too small to be a real installer.</summary>
+    DownloadIncomplete,
+
+    /// <summary>The installer file could not be found on disk.</summary>
+    InstallerMissing,
+
+    /// <summary>The installer was still running after the timeout elapsed.</summary>
+    InstallerTimedOut,
+
+    /// <summary>The installer ran and reported a failure.</summary>
+    InstallerFailed,
+
+    /// <summary>Something else went wrong; the detail carries the exception text.</summary>
+    Failed,
+}
+
+/// <summary>Progress notification raised while a driver is being installed.</summary>
+/// <param name="Phase">What is happening right now.</param>
+/// <param name="DriverName">Driver being installed.</param>
+public readonly record struct DriverInstallProgress(DriverInstallPhase Phase, string DriverName);
+
 /// <summary>Result of an installation attempt.</summary>
-/// <param name="Succeeded">True when msiexec reported success.</param>
+/// <param name="Succeeded">True when the installer reported success.</param>
 /// <param name="RestartRequired">True when the installer asked for a reboot (exit code 3010).</param>
-/// <param name="Message">Human readable outcome for the UI.</param>
-public readonly record struct DriverInstallResult(bool Succeeded, bool RestartRequired, string Message);
+/// <param name="Outcome">Why it ended this way, for the caller to localise.</param>
+/// <param name="DriverName">Driver involved.</param>
+/// <param name="Detail">
+/// Untranslatable extra context - an exception message, a path, an exit code - or empty.
+/// </param>
+/// <param name="Message">Ready-made English summary, used for logging.</param>
+public readonly record struct DriverInstallResult(
+    bool Succeeded,
+    bool RestartRequired,
+    DriverInstallOutcome Outcome,
+    string DriverName,
+    string Detail,
+    string Message);
 
 /// <summary>
 /// Detects and, with the user's consent, installs the ViGEmBus and HidHide drivers.
@@ -63,6 +130,25 @@ public static class DriverBootstrapper
     /// <summary>Official HidHide release used when no MSI is bundled.</summary>
     public const string HidHideDownloadUrl =
         "https://github.com/nefarius/HidHide/releases/download/v1.5.230.0/HidHide_1.5.230_x64.exe";
+
+    /// <summary>Builds a successful result.</summary>
+    private static DriverInstallResult Success(string driver, bool restartRequired) =>
+        new(true,
+            restartRequired,
+            restartRequired ? DriverInstallOutcome.InstalledRestartRequired : DriverInstallOutcome.Installed,
+            driver,
+            string.Empty,
+            restartRequired
+                ? $"{driver} installed. A restart is required."
+                : $"{driver} installed successfully.");
+
+    /// <summary>Builds a failed result.</summary>
+    private static DriverInstallResult Failure(
+        DriverInstallOutcome outcome,
+        string driver,
+        string detail,
+        string message) =>
+        new(false, false, outcome, driver, detail, message);
 
     /// <summary>Checks whether ViGEmBus appears to be installed.</summary>
     public static DriverState GetViGEmState()
@@ -200,20 +286,21 @@ public static class DriverBootstrapper
     {
         if (!OperatingSystem.IsWindows())
         {
-            return new DriverInstallResult(false, false, "Driver installation is only supported on Windows.");
+            return Failure(DriverInstallOutcome.NotSupported, friendlyName, string.Empty,
+                "Driver installation is only supported on Windows.");
         }
 
         var assembly = Assembly.GetEntryAssembly();
         if (assembly is null)
         {
-            return new DriverInstallResult(false, false, "Could not resolve the entry assembly.");
+            return Failure(DriverInstallOutcome.Failed, friendlyName, "entry assembly not resolved",
+                "Could not resolve the entry assembly.");
         }
 
         using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream is null)
         {
-            return new DriverInstallResult(
-                false, false,
+            return Failure(DriverInstallOutcome.NotBundled, friendlyName, string.Empty,
                 $"{friendlyName} installer is not bundled with this build. Please install it manually.");
         }
 
@@ -231,7 +318,8 @@ public static class DriverBootstrapper
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to extract {Driver} installer", friendlyName);
-            return new DriverInstallResult(false, false, $"Extraction failed: {ex.Message}");
+            return Failure(DriverInstallOutcome.Failed, friendlyName, ex.Message,
+                $"Extraction failed: {ex.Message}");
         }
         finally
         {
@@ -244,7 +332,8 @@ public static class DriverBootstrapper
     {
         if (!File.Exists(msiPath))
         {
-            return new DriverInstallResult(false, false, $"Installer not found: {msiPath}");
+            return Failure(DriverInstallOutcome.InstallerMissing, friendlyName, msiPath,
+                $"Installer not found: {msiPath}");
         }
 
         try
@@ -262,30 +351,24 @@ public static class DriverBootstrapper
             using var process = Process.Start(startInfo);
             if (process is null)
             {
-                return new DriverInstallResult(false, false, "Could not start the installer process.");
+                return Failure(DriverInstallOutcome.Failed, friendlyName, "installer process did not start",
+                    "Could not start the installer process.");
             }
 
             // Driver installs can be slow on cold systems; five minutes is generous but finite.
             if (!process.WaitForExit(300_000))
             {
-                return new DriverInstallResult(false, false, "Installer timed out.");
+                return Failure(DriverInstallOutcome.InstallerTimedOut, friendlyName, string.Empty,
+                    "Installer timed out.");
             }
 
-            var exitCode = process.ExitCode;
-            Log.Information("{Driver} installer exited with code {Code}", friendlyName, exitCode);
-
-            return exitCode switch
-            {
-                0 => new DriverInstallResult(true, false, $"{friendlyName} installed successfully."),
-                3010 => new DriverInstallResult(true, true, $"{friendlyName} installed. A restart is required."),
-                1602 => new DriverInstallResult(false, false, "Installation was cancelled."),
-                _ => new DriverInstallResult(false, false, $"Installer failed with exit code {exitCode}."),
-            };
+            return InterpretExitCode(process.ExitCode, friendlyName);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Running {Driver} installer failed", friendlyName);
-            return new DriverInstallResult(false, false, $"Installation failed: {ex.Message}");
+            return Failure(DriverInstallOutcome.Failed, friendlyName, ex.Message,
+                $"Installation failed: {ex.Message}");
         }
     }
 
@@ -302,22 +385,23 @@ public static class DriverBootstrapper
     /// <param name="resourceName">Embedded MSI resource name to prefer.</param>
     /// <param name="downloadUrl">Official installer URL used when nothing is bundled.</param>
     /// <param name="friendlyName">Driver name used in messages.</param>
-    /// <param name="progress">Receives human-readable progress for the status bar.</param>
+    /// <param name="progress">Receives the stage the installation has reached.</param>
     public static async Task<DriverInstallResult> EnsureInstalledAsync(
         string resourceName,
         string downloadUrl,
         string friendlyName,
-        IProgress<string>? progress = null)
+        IProgress<DriverInstallProgress>? progress = null)
     {
         if (!OperatingSystem.IsWindows())
         {
-            return new DriverInstallResult(false, false, "Driver installation is only supported on Windows.");
+            return Failure(DriverInstallOutcome.NotSupported, friendlyName, string.Empty,
+                "Driver installation is only supported on Windows.");
         }
 
         // Prefer an embedded MSI: it needs no network and cannot be tampered with in transit.
         if (HasEmbeddedInstaller(resourceName))
         {
-            progress?.Report($"Installing {friendlyName}...");
+            progress?.Report(new DriverInstallProgress(DriverInstallPhase.Installing, friendlyName));
             return InstallFromEmbeddedResource(resourceName, friendlyName);
         }
 
@@ -328,7 +412,7 @@ public static class DriverBootstrapper
 
         try
         {
-            progress?.Report($"Downloading {friendlyName}...");
+            progress?.Report(new DriverInstallProgress(DriverInstallPhase.Downloading, friendlyName));
 
             using (var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
             {
@@ -348,20 +432,18 @@ public static class DriverBootstrapper
             // A truncated or error-page download would otherwise reach msiexec and fail obscurely.
             if (new FileInfo(tempPath).Length < 100_000)
             {
-                return new DriverInstallResult(
-                    false, false,
+                return Failure(DriverInstallOutcome.DownloadIncomplete, friendlyName, string.Empty,
                     $"The downloaded {friendlyName} installer looks incomplete. Please install it manually.");
             }
 
-            progress?.Report($"Installing {friendlyName} (approve the Windows prompt)...");
+            progress?.Report(new DriverInstallProgress(DriverInstallPhase.InstallingElevated, friendlyName));
             return RunInstaller(tempPath, friendlyName);
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Automatic {Driver} installation failed", friendlyName);
 
-            return new DriverInstallResult(
-                false, false,
+            return Failure(DriverInstallOutcome.Failed, friendlyName, ex.Message,
                 $"Could not install {friendlyName} automatically ({ex.Message}). "
                 + $"Please download it from {downloadUrl} and run it.");
         }
@@ -378,7 +460,8 @@ public static class DriverBootstrapper
     {
         if (!File.Exists(installerPath))
         {
-            return new DriverInstallResult(false, false, $"Installer not found: {installerPath}");
+            return Failure(DriverInstallOutcome.InstallerMissing, friendlyName, installerPath,
+                $"Installer not found: {installerPath}");
         }
 
         // MSI packages go through msiexec; Nefarius ships .exe bundles that take /quiet themselves.
@@ -403,12 +486,14 @@ public static class DriverBootstrapper
             using var process = Process.Start(startInfo);
             if (process is null)
             {
-                return new DriverInstallResult(false, false, "Could not start the installer process.");
+                return Failure(DriverInstallOutcome.Failed, friendlyName, "installer process did not start",
+                    "Could not start the installer process.");
             }
 
             if (!process.WaitForExit(300_000))
             {
-                return new DriverInstallResult(false, false, "Installer timed out.");
+                return Failure(DriverInstallOutcome.InstallerTimedOut, friendlyName, string.Empty,
+                    "Installer timed out.");
             }
 
             return InterpretExitCode(process.ExitCode, friendlyName);
@@ -416,7 +501,8 @@ public static class DriverBootstrapper
         catch (Exception ex)
         {
             Log.Error(ex, "Running {Driver} setup failed", friendlyName);
-            return new DriverInstallResult(false, false, $"Installation failed: {ex.Message}");
+            return Failure(DriverInstallOutcome.Failed, friendlyName, ex.Message,
+                $"Installation failed: {ex.Message}");
         }
     }
 
@@ -426,10 +512,13 @@ public static class DriverBootstrapper
 
         return exitCode switch
         {
-            0 => new DriverInstallResult(true, false, $"{friendlyName} installed successfully."),
-            3010 => new DriverInstallResult(true, true, $"{friendlyName} installed. A restart is required."),
-            1602 or 1223 => new DriverInstallResult(false, false, "Installation was cancelled."),
-            _ => new DriverInstallResult(false, false, $"Installer failed with exit code {exitCode}."),
+            0 => Success(friendlyName, restartRequired: false),
+            3010 => Success(friendlyName, restartRequired: true),
+            1602 or 1223 => Failure(DriverInstallOutcome.Cancelled, friendlyName, string.Empty,
+                "Installation was cancelled."),
+            _ => Failure(DriverInstallOutcome.InstallerFailed, friendlyName,
+                exitCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                $"Installer failed with exit code {exitCode}."),
         };
     }
 
