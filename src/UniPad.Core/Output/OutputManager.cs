@@ -35,6 +35,12 @@ public sealed class OutputManager : IDisposable
     private bool _driverAvailable;
     private volatile bool _enabled = true;
 
+    /// <summary>
+    /// Number of poll cycles completed so far. Only used to fence a mapping edit against an
+    /// evaluation that is already in flight; it is never read for anything user visible.
+    /// </summary>
+    private long _cycleCount;
+
     /// <summary>Creates a manager bound to an input backend.</summary>
     public OutputManager(SdlInputBackend input)
     {
@@ -236,26 +242,37 @@ public sealed class OutputManager : IDisposable
     /// </summary>
     public void ProcessCycle()
     {
-        if (!_enabled)
+        try
         {
-            return;
-        }
-
-        for (var i = 0; i < MaxPlayers; i++)
-        {
-            var mapping = _mappings[i];
-            var pad = _pads[i];
-
-            if (mapping is not { Enabled: true } || pad is not { IsConnected: true })
+            if (!_enabled)
             {
-                continue;
+                return;
             }
 
-            _engines[i].Evaluate(mapping, ref _states[i]);
-            pad.Submit(in _states[i]);
-        }
+            for (var i = 0; i < MaxPlayers; i++)
+            {
+                // Read once into a local: a mapping edit detaches the slot by writing null here,
+                // and re-reading the field mid-evaluation could see the mapping vanish.
+                var mapping = _mappings[i];
+                var pad = _pads[i];
 
-        _feedback.FlushPending(GetStrengthForDeviceKey);
+                if (mapping is not { Enabled: true } || pad is not { IsConnected: true })
+                {
+                    continue;
+                }
+
+                _engines[i].Evaluate(mapping, ref _states[i]);
+                pad.Submit(in _states[i]);
+            }
+
+            _feedback.FlushPending(GetStrengthForDeviceKey);
+        }
+        finally
+        {
+            // Advances even on the disabled early return, so a mapping edit is never fenced
+            // against a counter that has stopped moving.
+            Interlocked.Increment(ref _cycleCount);
+        }
     }
 
     private int GetStrengthForDeviceKey(string deviceKey)
@@ -289,6 +306,22 @@ public sealed class OutputManager : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Detaches a player's mapping from the poll loop so its bindings can be rewritten without
+    /// racing the input thread, and reattaches it when the returned scope is disposed.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ProcessCycle"/> reads <c>PlayerMapping.Bindings</c> on the polling thread without
+    /// taking this class's lock, while auto-mapping, clearing and every rebind rewrite that same
+    /// dictionary from the interface. Adding a key can resize it, which a concurrent reader may
+    /// observe half-built. Taking the existing lock in the poll loop is not an option: ApplyMappings
+    /// holds it for hundreds of milliseconds while staggering pad connections, so every other
+    /// player would go dead meanwhile.
+    /// </remarks>
+    /// <param name="slot">Zero-based player slot whose mapping is about to be edited.</param>
+    /// <returns>A scope that reattaches the mapping when disposed.</returns>
+    public IDisposable BeginMappingEdit(int slot) => new MappingEditScope(this, slot);
 
     /// <summary>Reports the XInput slot assigned to a player, when known.</summary>
     public int? GetUserIndex(int slot) =>
@@ -372,5 +405,75 @@ public sealed class OutputManager : IDisposable
 
         _client = null;
         _driverAvailable = false;
+    }
+
+    /// <summary>Holds one player's mapping out of the poll loop for the duration of an edit.</summary>
+    private sealed class MappingEditScope : IDisposable
+    {
+        /// <summary>Upper bound on the fence wait, so a stalled poll thread cannot hang the caller.</summary>
+        private const int FenceTimeoutMs = 50;
+
+        private readonly OutputManager _owner;
+        private readonly int _slot;
+        private readonly PlayerMapping? _detached;
+
+        internal MappingEditScope(OutputManager owner, int slot)
+        {
+            _owner = owner;
+            _slot = slot;
+
+            if ((uint)slot >= MaxPlayers)
+            {
+                return;
+            }
+
+            _detached = owner._mappings[slot];
+            if (_detached is null)
+            {
+                // Nothing is being evaluated for this slot, so there is nothing to fence.
+                return;
+            }
+
+            // A reference write is atomic, so the poll loop either sees the mapping or sees null
+            // and skips the slot. It can never observe a partially rewritten dictionary.
+            owner._mappings[slot] = null;
+
+            // A cycle that had already begun may still hold the old reference. Two boundaries are
+            // waited for: the first ends the cycle that was in flight, the second proves a cycle
+            // has started since the detach.
+            var start = Interlocked.Read(ref owner._cycleCount);
+            var deadline = Environment.TickCount64 + FenceTimeoutMs;
+
+            while (Interlocked.Read(ref owner._cycleCount) - start < 2
+                   && Environment.TickCount64 < deadline)
+            {
+                Thread.Sleep(1);
+            }
+
+            // Release whatever was held down when the edit started, so rebinding a button cannot
+            // leave it stuck on inside the game for as long as the edit lasts.
+            var pad = owner._pads[slot];
+            if (pad is { IsConnected: true })
+            {
+                owner._states[slot] = default;
+                pad.Submit(in owner._states[slot]);
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            if (_detached is null)
+            {
+                return;
+            }
+
+            // Latched toggles may refer to bindings that no longer exist.
+            _owner._engines[_slot].ResetToggles();
+
+            // Writes back the same reference ApplyMappings would have stored, so an apply that ran
+            // concurrently is not undone by this.
+            _owner._mappings[_slot] = _detached;
+        }
     }
 }
