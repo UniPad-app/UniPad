@@ -20,6 +20,15 @@ public sealed partial class AboutViewModel : ViewModelBase
 {
     private readonly AppState _state;
 
+    // Key and untranslated remainder of the line currently in the maintenance box, kept so it can
+    // be rebuilt in the other language. Every message on this page goes through a key: the update
+    // messages used to be composed here as finished sentences, which left them in the language
+    // they were raised in - the status strip showed "UniPad is up to date (1.2.0)" in English long
+    // after the interface had switched to Persian, because the window is told to re-read only the
+    // lines that still know their key.
+    private string? _messageKey;
+    private string? _messageDetail;
+
     /// <summary>
     /// Progress text for the maintenance box. Named "message" rather than "status" on purpose:
     /// a property called UpdateStatus would shadow the <see cref="UpdateStatus"/> enum inside this
@@ -42,7 +51,14 @@ public sealed partial class AboutViewModel : ViewModelBase
     private string? _releaseUrl;
 
     /// <summary>Creates the About view model.</summary>
-    public AboutViewModel(AppState state) => _state = state;
+    public AboutViewModel(AppState state)
+    {
+        _state = state;
+
+        // The bound captions on this page refresh themselves; the maintenance line does not,
+        // because it was formatted once and stored.
+        Strings.Instance.LanguageChanged += OnLanguageChanged;
+    }
 
     /// <summary>Informational version of the running build.</summary>
     public string Version => UpdateService.CurrentVersion;
@@ -50,8 +66,13 @@ public sealed partial class AboutViewModel : ViewModelBase
     /// <summary>Absolute path of the data folder, so the user can find profiles and logs.</summary>
     public string DataRoot => PortablePaths.DataRoot;
 
-    /// <summary>Whether data lives next to the executable.</summary>
-    public string PortableModeText => PortablePaths.IsPortableMode ? "Portable" : "AppData";
+    /// <summary>
+    /// Whether data lives next to the executable. Read through the string table rather than
+    /// returning a literal, because it sits in a sentence with the data folder path beside it and
+    /// was the one English word left in that line after the interface switched to Persian.
+    /// </summary>
+    public string PortableModeText =>
+        Strings.Get(PortablePaths.IsPortableMode ? "about.portable" : "about.appData");
 
     /// <summary>Localised strings, bound from XAML.</summary>
     public Strings Text => Strings.Instance;
@@ -75,7 +96,7 @@ public sealed partial class AboutViewModel : ViewModelBase
         IsBusy = true;
         RestartPending = false;
         ManualDownloadAvailable = false;
-        SetStatus(Strings.Get("msg.updateChecking"));
+        SetStatus("msg.updateChecking", null, "Checking GitHub for a newer release...");
 
         try
         {
@@ -85,18 +106,23 @@ public sealed partial class AboutViewModel : ViewModelBase
             switch (found.Status)
             {
                 case UpdateStatus.UpToDate:
-                    SetStatus($"{Strings.Get("msg.upToDate")} ({found.CurrentVersion})");
+                    SetStatus("msg.upToDate", $"({found.CurrentVersion})",
+                        $"UniPad is up to date ({found.CurrentVersion})");
                     return;
 
                 case UpdateStatus.Failed:
                     ManualDownloadAvailable = true;
-                    SetStatus($"{Strings.Get("msg.updateFailed")}: {found.Message}");
+                    SetStatus("msg.updateFailed", found.Message,
+                        $"Update failed: {found.Message}");
                     return;
             }
 
-            // Percent arrives from a worker thread; Progress<T> marshals it back for us.
+            // Percent arrives from a worker thread; Progress<T> marshals it back for us. The
+            // version and the percentage travel as the detail of the line rather than being baked
+            // into it, so a language switch part-way through a download still re-reads the label.
             var progress = new Progress<int>(percent =>
-                SetStatus($"{Strings.Get("msg.updateDownloading")} {found.LatestVersion} - {percent}%"));
+                SetStatus("msg.updateDownloading", $"{found.LatestVersion} - {percent}%",
+                    $"Downloading version {found.LatestVersion} - {percent}%"));
 
             var applied = await UpdateService
                 .DownloadAndInstallAsync(found, progress)
@@ -105,18 +131,20 @@ public sealed partial class AboutViewModel : ViewModelBase
             if (applied.Status == UpdateStatus.Installed)
             {
                 RestartPending = true;
-                SetStatus($"{Strings.Get("msg.updateInstalled")} ({applied.LatestVersion})");
+                SetStatus("msg.updateInstalled", $"({applied.LatestVersion})",
+                    $"Update installed - restart UniPad to use it ({applied.LatestVersion})");
             }
             else
             {
                 ManualDownloadAvailable = true;
-                SetStatus($"{Strings.Get("msg.updateFailed")}: {applied.Message}");
+                SetStatus("msg.updateFailed", applied.Message,
+                    $"Update failed: {applied.Message}");
             }
         }
         catch (Exception ex)
         {
             ManualDownloadAvailable = true;
-            SetStatus($"{Strings.Get("msg.updateFailed")}: {ex.Message}");
+            SetStatus("msg.updateFailed", ex.Message, $"Update failed: {ex.Message}");
         }
         finally
         {
@@ -180,24 +208,43 @@ public sealed partial class AboutViewModel : ViewModelBase
 
     private bool CanRunMaintenance() => !IsBusy;
 
-    /// <summary>Mirrors an already-formatted message into the page and the window's status strip.</summary>
-    private void SetStatus(string message)
-    {
-        UpdateMessage = message;
-        _state.ReportStatus(message);
-    }
-
     /// <summary>
-    /// Mirrors a localisable message into both places, keeping the key so the status strip can
-    /// rebuild the line if the user switches language while it is still on screen.
+    /// Mirrors a localisable message into the page and the window's status strip, keeping the key
+    /// so both can rebuild the line if the user switches language while it is still on screen.
+    /// <para>
+    /// <paramref name="detail"/> carries the part that is never translated - a version number, a
+    /// path, an exception message - and <paramref name="fallback"/> is the English form handed to
+    /// the log, which is written once and should not follow the interface language.
+    /// </para>
     /// </summary>
     private void SetStatus(string key, string? detail, string fallback)
     {
-        UpdateMessage = detail is null
-            ? Strings.Get(key)
-            : $"{Strings.Get(key)} {Strings.Isolate(detail)}";
+        _messageKey = key;
+        _messageDetail = detail;
 
+        UpdateMessage = Compose();
         _state.ReportStatus(key, detail, fallback);
+    }
+
+    private string Compose() =>
+        string.IsNullOrEmpty(_messageDetail)
+            ? Strings.Get(_messageKey!)
+            : $"{Strings.Get(_messageKey!)} {Strings.Isolate(_messageDetail)}";
+
+    /// <summary>
+    /// Rebuilds the maintenance line after a language change. The window rebuilds the copy in its
+    /// own status strip from the same key, so the two never disagree.
+    /// </summary>
+    private void OnLanguageChanged()
+    {
+        if (_messageKey is not null)
+        {
+            UpdateMessage = Compose();
+        }
+
+        // A computed property with no backing field raises nothing by itself, so the view is
+        // told explicitly that its text has changed.
+        OnPropertyChanged(nameof(PortableModeText));
     }
 
     private void OpenPath(string path)

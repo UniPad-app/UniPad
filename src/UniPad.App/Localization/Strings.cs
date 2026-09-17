@@ -242,6 +242,8 @@ public sealed class Strings : INotifyPropertyChanged
             + "of code here is original work.",
         ["about.dataFolder"] = "Data folder",
         ["about.maintenance"] = "Maintenance",
+        ["about.portable"] = "Portable",
+        ["about.appData"] = "AppData",
 
         ["opt.vibration"] = "Vibration",
         ["opt.emulateStick"] = "Emulate Left Stick with D-Pad",
@@ -437,6 +439,8 @@ public sealed class Strings : INotifyPropertyChanged
             + "تنظیم کنترلر الهام بصری گرفته است، اما تمام دارایی‌ها، استایل‌ها و خطوط کد این برنامه اثر اصیل خودش است.",
         ["about.dataFolder"] = "پوشه داده",
         ["about.maintenance"] = "نگهداری",
+        ["about.portable"] = "قابل‌حمل",
+        ["about.appData"] = "پوشهٔ کاربر",
 
         ["opt.vibration"] = "لرزش",
         ["opt.emulateStick"] = "شبیه‌سازی آنالوگ چپ با دی‌پد",
