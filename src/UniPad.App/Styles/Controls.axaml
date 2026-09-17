@@ -14,6 +14,25 @@
   -->
   <Styles.Resources>
     <SolidColorBrush x:Key="TabSelectedOutlineBrush" Color="#FF8C1A" />
+
+    <!--
+      Caption chip height, and the frame offset that must be exactly half of it: the frame's
+      top edge has to land on the chip's vertical centre line, otherwise the caption floats
+      above the border instead of sitting on it. Keep the two in sync.
+    -->
+    <x:Double x:Key="GroupBoxCaptionHeight">16</x:Double>
+    <Thickness x:Key="GroupBoxFrameOffset">0,8,0,0</Thickness>
+
+    <!--
+      Height of the caption's own outline: half the chip plus the one pixel the frame line
+      occupies. Stopping at exactly half leaves a hairline gap between the chip's vertical
+      strokes and the frame line at fractional scalings; the extra pixel makes the two meet.
+      Anything below that row is inside the frame and is left unstroked on purpose.
+    -->
+    <x:Double x:Key="GroupBoxCaptionOutlineHeight">9</x:Double>
+
+    <!-- Rounded on top only: the bottom corners sit inside the frame and are never drawn. -->
+    <CornerRadius x:Key="GroupBoxCaptionCornerRadius">3,3,0,0</CornerRadius>
   </Styles.Resources>
 
   <!-- ============ Window ============ -->
@@ -122,39 +141,57 @@
 
   <!-- ============ Group box (Qt style: caption sits on the border) ============ -->
   <!--
-    Two layers in a Panel rather than a Grid: the frame is pushed down by half a caption line so
-    the caption chip straddles its top edge, and the chip - declared second - paints its opaque
-    background over that edge, which is what creates the notched look.
-
-    The caption row must be Auto. It used to be a fixed eight pixels with the frame starting at the
-    top of it, which left the caption inside an eight-pixel slot: Latin text survived, but a
-    Persian line is taller and lost its ascenders and descenders, so headings such as the D-Pad
-    box and the emulated devices box on the Advanced page were cut in half. Sizing the row to the
-    text and offsetting the frame instead keeps the geometry identical - the gap between the border
-    and the content is unchanged - while the caption can be as tall as its script needs.
+    The overlap between the caption chip and the frame must not depend on the caption's script.
+    The chip therefore has a fixed height and the frame is offset by exactly half of it, so the
+    border line always crosses the chip's middle and the notch reads identically in Latin and
+    Persian. The caption text itself is centre-aligned and free to overflow that height - it is
+    never measured into an 8px slot, so ascenders and descenders are not clipped the way they
+    were before. Do not set ClipToBounds on the chip.
   -->
   <Style Selector="HeaderedContentControl.groupBox">
     <Setter Property="Margin" Value="3" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
-          <!-- Frame: starts half a caption line down, so the chip sits on its top edge. -->
-          <Border Margin="0,8,0,0"
+          <!-- Frame: starts half a caption chip down, so the chip sits on its top edge. -->
+          <Border Margin="{DynamicResource GroupBoxFrameOffset}"
                   Background="{DynamicResource PanelBackgroundBrush}"
                   BorderBrush="{DynamicResource BorderBrush}"
                   BorderThickness="1"
                   CornerRadius="{DynamicResource StandardCornerRadius}" />
 
           <Grid RowDefinitions="Auto,*">
-            <!-- Caption chip: opaque, so it hides the stretch of border behind it. -->
-            <Border Grid.Row="0"
-                    Background="{DynamicResource PanelBackgroundBrush}"
-                    HorizontalAlignment="Center"
-                    Padding="6,0">
+            <!--
+              Caption chip. Three layers, declared back to front:
+              an opaque fill that erases the stretch of frame line behind the whole chip,
+              an outline that exists only above that line, and the text.
+              The chip's width comes from the text plus its 5px side margins; every layer
+              stretches to it. The Panel is pinned to the chip height so the Auto row stays
+              exactly one chip tall, while the text is free to overflow it - no ClipToBounds
+              anywhere, so Persian ascenders and descenders survive.
+            -->
+            <Panel Grid.Row="0"
+                   Height="{DynamicResource GroupBoxCaptionHeight}"
+                   HorizontalAlignment="Center">
+
+              <Border Background="{DynamicResource PanelBackgroundBrush}"
+                      CornerRadius="{DynamicResource GroupBoxCaptionCornerRadius}" />
+
+              <!-- Top half only: open at the bottom, so nothing is drawn inside the frame. -->
+              <Border Height="{DynamicResource GroupBoxCaptionOutlineHeight}"
+                      VerticalAlignment="Top"
+                      Background="Transparent"
+                      BorderBrush="{DynamicResource BorderBrush}"
+                      BorderThickness="1,1,1,0"
+                      CornerRadius="{DynamicResource GroupBoxCaptionCornerRadius}" />
+
               <TextBlock Text="{TemplateBinding Header}"
+                         Margin="5,0"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
                          Foreground="{DynamicResource TextSecondaryBrush}"
                          FontSize="{DynamicResource FontSizeSmall}" />
-            </Border>
+            </Panel>
 
             <ContentPresenter Grid.Row="1"
                               Content="{TemplateBinding Content}"
