@@ -1,5 +1,6 @@
 using Avalonia;
 using Serilog;
+using UniPad.App.Services;
 using UniPad.Core.SystemServices;
 
 namespace UniPad.App;
@@ -14,6 +15,17 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Before anything else, including the update cleanup below: a launch that is only going to
+        // hand over to the running instance has no business deleting its files or touching its
+        // configuration.
+        var singleInstance = new SingleInstance();
+        if (!singleInstance.IsFirstInstance)
+        {
+            singleInstance.SignalExistingInstance();
+            singleInstance.Dispose();
+            return 0;
+        }
+
         // A previous update renamed the old build aside; now that this one is running, it can go.
         UpdateService.CleanupPreviousUpdate();
 
@@ -55,6 +67,10 @@ public static class Program
             }
 
             return 1;
+        }
+        finally
+        {
+            singleInstance.Dispose();
         }
     }
 

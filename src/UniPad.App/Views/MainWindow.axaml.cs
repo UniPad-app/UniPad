@@ -90,11 +90,18 @@ public partial class MainWindow : Window
         Hide();
     }
 
-    /// <summary>Restores the window from the notification area.</summary>
+    /// <summary>Restores the window from the notification area, or from another launch.</summary>
     public void RestoreFromTray()
     {
         Show();
         WindowState = WindowState.Normal;
+
+        // Windows only lets the foreground process raise a window freely, and the process asking
+        // is the one that was just launched, not this one. A momentary Topmost is the usual way
+        // around it; it is dropped again immediately so the window does not sit above everything.
+        Topmost = true;
+        Topmost = false;
+
         Activate();
         _uiTimer.Start();
     }

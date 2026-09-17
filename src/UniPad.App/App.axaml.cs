@@ -8,6 +8,7 @@ using UniPad.App.Localization;
 using UniPad.App.Services;
 using UniPad.App.ViewModels;
 using UniPad.App.Views;
+using Avalonia.Threading;
 
 namespace UniPad.App;
 
@@ -58,6 +59,14 @@ public partial class App : Application
             // Installed after the window exists so the menu commands are already live.
             _tray = new TrayIconHost(viewModel);
 
+            // Listening starts here rather than in Main, because a launch that arrives before the
+            // window exists would have nothing to show.
+            if (SingleInstance.Current is { } guard)
+            {
+                guard.ActivationRequested += OnActivationRequested;
+                guard.StartListening();
+            }
+
             var startHidden = StartHidden || _state.Config.StartMinimizedToTray;
             if (startHidden)
             {
@@ -85,6 +94,13 @@ public partial class App : Application
             ? ThemeVariant.Light
             : ThemeVariant.Dark;
     }
+
+    /// <summary>
+    /// Brings the window back after someone launched UniPad again. Raised on the listener thread,
+    /// so the work is posted to the UI thread before touching the window.
+    /// </summary>
+    private void OnActivationRequested() =>
+        Dispatcher.UIThread.Post(() => _window?.RestoreFromTray());
 
     private void Shutdown(IClassicDesktopStyleApplicationLifetime desktop)
     {

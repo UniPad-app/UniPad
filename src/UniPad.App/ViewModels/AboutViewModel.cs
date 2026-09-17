@@ -158,6 +158,10 @@ public sealed partial class AboutViewModel : ViewModelBase
     {
         _state.SaveAll();
 
+        // The new build is a second instance by design, and this one is about to exit, so the slot
+        // is handed over rather than held until the process dies.
+        SingleInstance.Current?.ReleaseForRestart();
+
         if (UpdateService.TryRestart())
         {
             RestartRequested?.Invoke();
