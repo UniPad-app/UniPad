@@ -115,7 +115,7 @@
     </Border>
 
     <!-- ============ Action row ============ -->
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="8">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="8">
       <Button Grid.Column="0" Classes="accent"
               Command="{Binding AutoDetectAllCommand}"
               Content="{Binding Text[action.autoDetectAll], Source={x:Static loc:Strings.Instance}}"
@@ -123,19 +123,16 @@
       <Button Grid.Column="1"
               Command="{Binding ClearAllCommand}"
               Content="{Binding Text[action.clearAll], Source={x:Static loc:Strings.Instance}}" Margin="0,0,4,0" />
-      <Button Grid.Column="2"
-              Command="{Binding SaveProfileCommand}"
-              Content="{Binding Text[action.save], Source={x:Static loc:Strings.Instance}}" />
 
-      <Button Grid.Column="4" Classes="accent"
+      <Button Grid.Column="3" Classes="accent"
               Command="{Binding OkCommand}"
               Content="{Binding Text[action.ok], Source={x:Static loc:Strings.Instance}}"
               MinWidth="72" Margin="0,0,4,0" />
-      <Button Grid.Column="5"
+      <Button Grid.Column="4"
               Command="{Binding ApplyCommand}"
               Content="{Binding Text[action.apply], Source={x:Static loc:Strings.Instance}}"
               MinWidth="72" Margin="0,0,4,0" />
-      <Button Grid.Column="6"
+      <Button Grid.Column="5"
               Command="{Binding CancelCommand}"
               Content="{Binding Text[action.cancel], Source={x:Static loc:Strings.Instance}}"
               MinWidth="72" />

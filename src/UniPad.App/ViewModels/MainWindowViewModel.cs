@@ -288,14 +288,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             Strings.Isolate($"{active}/{OutputManager.MaxPlayers}");
     }
 
-    /// <summary>Saves the current profile.</summary>
-    [RelayCommand]
-    private void SaveProfile()
-    {
-        _state.SaveAll();
-        SetStatus("msg.profileSaved");
-    }
-
     /// <summary>Creates a new profile from the current state and switches to it.</summary>
     [RelayCommand]
     private void NewProfile()
@@ -399,11 +391,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         SetStatus("msg.allCleared");
     }
 
-    /// <summary>Saves and closes.</summary>
+    /// <summary>Applies changes and closes the window.</summary>
+    /// <remarks>
+    /// Routed through the same path as Apply rather than only saving. OK used to write the profile
+    /// and hide the window, which was silently different from what it looked like it did: changing
+    /// a player's output type from Xbox360 to DualShock4 and pressing OK stored the choice but left
+    /// the old pad connected until the next launch or the next hot-plug.
+    /// </remarks>
     [RelayCommand]
-    private void Ok()
+    private async Task OkAsync()
     {
-        _state.SaveAll();
+        await ApplyAsync();
         HideRequested?.Invoke();
     }
 
@@ -419,6 +417,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// thread; doing it inline would freeze the window long enough for Windows to mark it as not
     /// responding. Saving happens first and on the UI thread, because it reads view-model state.
     /// </para>
+    /// <para>
+    /// The work goes through <c>ApplyOutput</c> rather than rebuilding unconditionally, so pressing
+    /// Apply after editing bindings alone no longer tears down working pads: the connect sound, the
+    /// gap of a few hundred milliseconds, and a game losing the controller mid-session were all
+    /// consequences of forcing it. The mapping engine reads bindings live, so nothing has to be
+    /// recreated for them to take effect. When the output really did change - a player enabled, a
+    /// different device, another output type - the signature reflects it and the pads are rebuilt.
+    /// </para>
     /// </summary>
     [RelayCommand]
     private async Task ApplyAsync()
@@ -430,16 +436,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            // The whole poll loop is detached for the duration, because any slot may be rewritten.
             await Task.Run(() =>
             {
                 using (_state.Output.BeginMappingEdit(-1))
                 {
-                    _state.ApplyMappings();
-                    _state.ApplyCloaking();
+                    _state.ApplyOutput();
                 }
             });
 
-            SetStatus("msg.profileSaved");
+            // One message for both outcomes. Whether the pads had to be rebuilt is an internal
+            // detail: editing a binding alone leaves the signature unchanged and touches no pad,
+            // but the binding is live either way, so reporting that as merely "saved" would
+            // understate what happened and read like the old Save button.
+            SetStatus("msg.applied");
         }
         catch (Exception ex)
         {
@@ -449,9 +459,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             IsApplying = false;
 
-            // Pad connection state changed underneath us, so the per-player status lines and the
-            // summary in the status bar are both stale. The user index is re-read first: pads that
-            // were plugged in moments ago do not have one yet when ApplyMappings returns.
+            // Pad connection state may have changed underneath us, so the per-player status lines
+            // and the summary in the status bar are both stale. The user index is re-read first:
+            // pads that were plugged in moments ago do not have one yet when the apply returns.
             _state.Output.RefreshUserIndices();
 
             foreach (var player in Players)
