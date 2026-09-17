@@ -9,9 +9,42 @@ namespace UniPad.Core.Mapping;
 /// <param name="UsedSdlMapping">True when SDL's community database supplied an exact mapping.</param>
 /// <param name="MappedTargets">How many logical outputs received a binding.</param>
 /// <param name="Message">Human readable summary.</param>
+
+/// <summary>
+/// Which of the three mapping paths produced a result.
+/// <para>
+/// Reported as a value rather than left implicit in <see cref="AutoMapResult.Message"/> so the
+/// user interface can localise the outcome. This layer has no access to the string table, and
+/// giving it one would drag presentation concerns into the core.
+/// </para>
+/// </summary>
+public enum AutoMapOutcome
+{
+    /// <summary>The fixed keyboard and mouse layout was applied.</summary>
+    KeyboardMouse,
+
+    /// <summary>SDL's controller database supplied an exact mapping.</summary>
+    SdlDatabase,
+
+    /// <summary>A mapping was guessed from the axis, button and hat counts.</summary>
+    Guessed,
+
+    /// <summary>Nothing could be guessed; the device needs binding by hand.</summary>
+    Failed,
+}
+
+/// <summary>Outcome of an automatic mapping attempt, shown to the user as a notification.</summary>
+/// <param name="Success">True when at least the face buttons could be mapped.</param>
+/// <param name="UsedSdlMapping">True when SDL's community database supplied an exact mapping.</param>
+/// <param name="Outcome">Which path produced the result, for the caller to localise.</param>
+/// <param name="DeviceName">Name of the device involved, to be embedded in a localised message.</param>
+/// <param name="MappedTargets">How many logical outputs received a binding.</param>
+/// <param name="Message">Human readable English summary, used for logs.</param>
 public readonly record struct AutoMapResult(
     bool Success,
     bool UsedSdlMapping,
+    AutoMapOutcome Outcome,
+    string DeviceName,
     int MappedTargets,
     string Message);
 
@@ -43,6 +76,8 @@ public static unsafe class AutoMapper
             return new AutoMapResult(
                 Success: true,
                 UsedSdlMapping: false,
+                Outcome: AutoMapOutcome.KeyboardMouse,
+                DeviceName: device.Name,
                 MappedTargets: keyCount,
                 Message: "Applied the default keyboard and mouse layout.");
         }
@@ -59,6 +94,8 @@ public static unsafe class AutoMapper
             return new AutoMapResult(
                 Success: true,
                 UsedSdlMapping: true,
+                Outcome: AutoMapOutcome.SdlDatabase,
+                DeviceName: device.Name,
                 MappedTargets: count,
                 Message: $"Auto-mapped '{device.Name}' from the SDL controller database.");
         }
@@ -72,6 +109,8 @@ public static unsafe class AutoMapper
         return new AutoMapResult(
             Success: heuristicCount > 0,
             UsedSdlMapping: false,
+            Outcome: heuristicCount > 0 ? AutoMapOutcome.Guessed : AutoMapOutcome.Failed,
+            DeviceName: device.Name,
             MappedTargets: heuristicCount,
             Message: heuristicCount > 0
                 ? $"Guessed a mapping for '{device.Name}'. Please review and correct it."

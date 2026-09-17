@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using UniPad.App.Localization;
@@ -16,6 +17,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly AppState _state;
     private readonly BindCaptureService _capture;
     private int _diagnosticsTickCounter;
+
+    // The key and the untranslated remainder of the line currently in the status bar, kept so the
+    // message can be rebuilt in the other language. Null means the text came from a core service
+    // already formatted, and there is nothing to re-read.
+    private string? _statusKey;
+    private string _statusDetail = string.Empty;
 
     [ObservableProperty]
     private int _selectedTabIndex;
@@ -47,10 +54,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showHidHideBanner;
-    
+
     [ObservableProperty]
     private bool _isApplying;
-
 
     /// <summary>Creates the root view model and its child tabs.</summary>
     public MainWindowViewModel(AppState state)
@@ -86,6 +92,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         state.DevicesChanged += OnDevicesChanged;
         state.StatusMessage += OnStatusMessage;
+        state.StatusReported += OnStatusReported;
 
         RefreshBanners();
         UpdateConnectedSummary();
@@ -103,7 +110,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>Every tab shown in the strip: the eight players followed by Advanced.</summary>
     public ObservableCollection<TabDescriptor> AllTabs { get; } = [];
 
-        /// <summary>True while the Controls category is selected, so the player tab strip is shown.</summary>
+    /// <summary>True while the Controls category is selected, so the player tab strip is shown.</summary>
     public bool IsControlsCategory => SelectedCategoryIndex == 0;
 
     /// <summary>True while the Advanced category is selected.</summary>
@@ -171,15 +178,57 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         UpdateConnectedSummary();
     }
 
-    private void OnStatusMessage(string message) => StatusText = message;
+    /// <summary>
+    /// Shows an already-formatted message coming from a core service.
+    /// <para>
+    /// There is no key behind it, so it keeps its own language if the interface language changes.
+    /// It is isolated because a Latin sentence in a right-to-left interface otherwise has its
+    /// trailing full stop resolved to the paragraph direction and moved to the far end of the line.
+    /// </para>
+    /// </summary>
+    private void OnStatusMessage(string message)
+    {
+        _statusKey = null;
+        _statusDetail = string.Empty;
+        StatusText = Strings.Isolate(message);
+    }
+
+    /// <summary>
+    /// Shows a status message that arrived with its key intact, so it can be rebuilt in the other
+    /// language later. This is the same storage the window's own messages use.
+    /// </summary>
+    private void OnStatusReported(AppState.StatusReport report)
+    {
+        SetStatus(report.Key, report.Detail.Length == 0 ? null : report.Detail);
+    }
+
+    /// <summary>
+    /// Shows a localised status message and remembers the key behind it.
+    /// <para>
+    /// <paramref name="detail"/> carries the part that is never translated - a count, a profile
+    /// name, an exception message - and is isolated so the bidirectional algorithm keeps it next
+    /// to the label it belongs to instead of reordering it on its own.
+    /// </para>
+    /// </summary>
+    private void SetStatus(string key, string? detail = null)
+    {
+        _statusKey = key;
+        _statusDetail = detail ?? string.Empty;
+        StatusText = ComposeStatus();
+    }
+
+    private string ComposeStatus() =>
+        _statusDetail.Length == 0
+            ? Strings.Get(_statusKey!)
+            : $"{Strings.Get(_statusKey!)} {Strings.Isolate(_statusDetail)}";
 
     /// <summary>
     /// Rebuilds every caption that was produced in code after a language change.
     /// <para>
     /// The bound captions refresh themselves now, but strings that were formatted once and stored
     /// would otherwise keep the previous language: the tab headers, the entries of each device
-    /// picker, the "[not set]" text on every bind button, the banner text and the status summary.
-    /// The tab collection is rebuilt rather than mutated per item because
+    /// picker, the "[not set]" text on every bind button, the banner text, the status summary and
+    /// the status line itself. The tab collection is rebuilt rather than mutated per item because
     /// <see cref="TabDescriptor"/> is an immutable record.
     /// </para>
     /// </summary>
@@ -204,13 +253,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         RefreshBanners();
         UpdateConnectedSummary();
+
+        // The message sitting in the status bar was formatted when it was raised, so it is rebuilt
+        // here whenever it came from a key rather than from a core service.
+        if (_statusKey is not null)
+        {
+            StatusText = ComposeStatus();
+        }
     }
 
     private void RefreshBanners()
     {
         ShowDriverBanner = !_state.Output.IsDriverAvailable;
         DriverBannerText = _state.Output.DriverError is { Length: > 0 } error
-            ? $"{Strings.Get("status.driverMissing")} ({error})"
+            ? $"{Strings.Get("status.driverMissing")} {Strings.Isolate($"({error})")}"
             : Strings.Get("status.driverMissing");
 
         ShowHidHideBanner = !_state.HidHide.IsAvailable
@@ -222,9 +278,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var connected = _state.Input.Devices.Count();
         var active = Players.Count(p => p.IsEnabled && _state.Output.IsPadConnected(p.Mapping.Index));
 
+        // Both counts are isolated: "1/8" was being split around the slash in a right-to-left line.
         ConnectedSummary =
-            $"{Strings.Get("status.devices")}: {connected}  |  " +
-            $"{Strings.Get("status.controllers")}: {active}/{OutputManager.MaxPlayers}";
+            $"{Strings.Get("status.devices")}: " +
+            Strings.Isolate(connected.ToString(CultureInfo.InvariantCulture)) +
+            "  |  " +
+            $"{Strings.Get("status.controllers")}: " +
+            Strings.Isolate($"{active}/{OutputManager.MaxPlayers}");
     }
 
     /// <summary>Saves the current profile.</summary>
@@ -232,7 +292,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private void SaveProfile()
     {
         _state.SaveAll();
-        StatusText = Strings.Get("msg.profileSaved");
+        SetStatus("msg.profileSaved");
     }
 
     /// <summary>Creates a new profile from the current state and switches to it.</summary>
@@ -250,7 +310,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _state.Store.SaveProfile(name, _state.Players);
         Profiles.Add(name);
         SelectedProfile = name;
-        StatusText = $"Profile '{name}' created.";
+        SetStatus("msg.profileCreated", name);
     }
 
     /// <summary>Deletes the selected profile, unless it is the default one.</summary>
@@ -260,13 +320,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var name = SelectedProfile;
         if (!_state.Store.DeleteProfile(name))
         {
-            StatusText = "The default profile cannot be deleted.";
+            SetStatus("msg.profileProtected");
             return;
         }
 
         Profiles.Remove(name);
         SelectedProfile = Profiles.FirstOrDefault() ?? "Default";
-        StatusText = $"Profile '{name}' deleted.";
+        SetStatus("msg.profileDeleted", name);
     }
 
     /// <summary>Auto-detects and maps every connected controller in one action.</summary>
@@ -281,9 +341,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             player.RefreshDevices();
         }
 
-        StatusText = count > 0
-            ? $"{Strings.Get("msg.autoMapped")} ({count})"
-            : Strings.Get("msg.noDevice");
+        if (count > 0)
+        {
+            SetStatus("msg.autoMapped", $"({count.ToString(CultureInfo.InvariantCulture)})");
+        }
+        else
+        {
+            SetStatus("msg.noDevice");
+        }
     }
 
     /// <summary>Clears every binding of every player.</summary>
@@ -297,7 +362,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             player.PullFromMapping();
         }
 
-        StatusText = "All mappings cleared.";
+        SetStatus("msg.allCleared");
     }
 
     /// <summary>Saves and closes.</summary>
@@ -327,7 +392,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _state.SaveAll();
 
         IsApplying = true;
-        StatusText = "Applying...";
+        SetStatus("msg.applying");
 
         try
         {
@@ -337,11 +402,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 _state.ApplyCloaking();
             });
 
-            StatusText = Strings.Get("msg.profileSaved");
+            SetStatus("msg.profileSaved");
         }
         catch (Exception ex)
         {
-            StatusText = $"Apply failed: {ex.Message}";
+            SetStatus("msg.applyFailed", ex.Message);
         }
         finally
         {
@@ -371,7 +436,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private void ToggleOutput()
     {
         Advanced.OutputEnabled = !Advanced.OutputEnabled;
-        StatusText = Advanced.OutputEnabled ? "Output enabled." : "Output disabled.";
+        SetStatus(Advanced.OutputEnabled ? "msg.outputEnabled" : "msg.outputDisabled");
     }
 
     /// <summary>Reloads the active profile from disk, discarding unsaved changes.</summary>

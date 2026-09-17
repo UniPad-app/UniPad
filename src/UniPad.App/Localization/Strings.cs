@@ -67,6 +67,21 @@ public sealed class Strings : INotifyPropertyChanged
     public FlowDirection TextFlowDirection =>
         IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
+    /// <summary>
+    /// Wraps a value that is not translated - a number, a unit, a device or profile name, an
+    /// exception message - in a first-strong isolate.
+    /// <para>
+    /// Without it the bidirectional algorithm reorders such a fragment independently of the label
+    /// it belongs to, because the surrounding spaces and pipes are neutral: the status bar showed
+    /// "Poll: 1000 Hz | cycle 18 us" with the number, the unit and the separator scattered across
+    /// the line. An isolate keeps the fragment in one piece and takes its direction from its own
+    /// first strong character, so a Latin unit reads left to right and a Persian one right to left
+    /// without the caller having to know which.
+    /// </para>
+    /// </summary>
+    public static string Isolate(string value) =>
+        string.IsNullOrEmpty(value) ? string.Empty : $"\u2068{value}\u2069";
+
     /// <summary>Looks up a string by key, falling back to English and then to the key itself.</summary>
     public string this[string key]
     {
@@ -246,6 +261,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.mouseInvertY"] = "Invert mouse Y",
 
         ["unit.seconds"] = "s",
+        ["unit.hz"] = "Hz",
+        ["unit.microseconds"] = "\u00B5s",
 
         ["status.emulatedDevices"] = "Emulated Devices",
         ["status.other"] = "Other",
@@ -255,9 +272,32 @@ public sealed class Strings : INotifyPropertyChanged
         ["status.driverMissing"] = "ViGEmBus driver is not installed. Virtual controllers are unavailable.",
         ["status.hidhideMissing"] = "HidHide is not installed. For best results install it to stop double input.",
         ["status.pollRate"] = "Poll",
+        ["status.cycle"] = "Cycle",
         ["status.devices"] = "Devices",
 
         ["msg.autoMapped"] = "Auto-mapping applied. Please review and correct it.",
+        ["msg.profileLoaded"] = "Profile loaded:",
+        ["msg.inputInitFailed"] = "Input initialisation failed:",
+        ["msg.deviceSetupFailed"] = "Device setup failed:",
+        ["msg.restartFailed"] = "Could not relaunch UniPad; please start it again manually.",
+        ["msg.mappingDbInvalid"] = "Downloaded mapping database looks invalid; keeping the existing one.",
+        ["msg.mappingDbUpdated"] = "Mapping database updated. Restart UniPad to apply it.",
+        ["msg.mappingDbFailed"] = "Mapping database update failed:",
+        ["msg.openPathFailed"] = "Could not open:",
+        ["msg.autoMapKeyboard"] = "Applied the default keyboard and mouse layout.",
+        ["msg.autoMapSdl"] = "Mapped from the SDL controller database:",
+        ["msg.autoMapGuessed"] = "Guessed a mapping. Please review and correct it:",
+        ["msg.autoMapFailed"] = "Could not guess a mapping. Please bind manually:",
+        ["msg.allCleared"] = "All mappings cleared.",
+        ["msg.applying"] = "Applying...",
+        ["msg.applyFailed"] = "Apply failed:",
+        ["msg.outputEnabled"] = "Output enabled.",
+        ["msg.outputDisabled"] = "Output disabled.",
+        ["msg.profileCreated"] = "Profile created:",
+        ["msg.profileDeleted"] = "Profile deleted:",
+        ["msg.profileProtected"] = "The default profile cannot be deleted.",
+        ["msg.logLevelRestart"] = "Log level changes take effect after a restart.",
+        ["msg.startupEntryFailed"] = "Could not update the Windows startup entry.",
         ["msg.profileSaved"] = "Profile saved.",
         ["msg.noDevice"] = "Select an input device first.",
         ["msg.xinputLimit"] = "Windows provides only 4 XInput slots. Players 5-8 use DualShock 4 output, which XInput-only games will not see.",
@@ -385,7 +425,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.startMinimized"] = "شروع به‌صورت مینیمایز در سینی",
         ["opt.minimizeOnClose"] = "مینیمایز به سینی هنگام بستن",
         ["opt.runAtStartup"] = "اجرا هنگام راه‌اندازی ویندوز",
-        ["opt.pollRate"] = "نرخ نظرسنجی",
+        ["opt.pollRate"] = "نرخ خوانش",
         ["opt.theme"] = "پوسته",
         ["opt.language"] = "زبان",
         ["opt.verboseLogging"] = "لاگ کامل",
@@ -396,6 +436,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["opt.mouseInvertY"] = "معکوس کردن محور عمودی ماوس",
 
         ["unit.seconds"] = "ثانیه",
+        ["unit.hz"] = "هرتز",
+        ["unit.microseconds"] = "میکروثانیه",
 
         ["status.emulatedDevices"] = "دستگاه‌های شبیه‌سازی‌شده",
         ["status.other"] = "سایر",
@@ -404,10 +446,33 @@ public sealed class Strings : INotifyPropertyChanged
         ["status.xinputSlot"] = "اسلات XInput",
         ["status.driverMissing"] = "درایور ViGEmBus نصب نیست. کنترلر مجازی در دسترس نیست.",
         ["status.hidhideMissing"] = "HidHide نصب نیست. برای بهترین نتیجه آن را نصب کنید تا ورودی دوتایی نشود.",
-        ["status.pollRate"] = "نظرسنجی",
+        ["status.pollRate"] = "نرخ خوانش",
+        ["status.cycle"] = "چرخه",
         ["status.devices"] = "دستگاه‌ها",
 
         ["msg.autoMapped"] = "نگاشت خودکار انجام شد — لطفاً بررسی و اصلاح کنید.",
+        ["msg.profileLoaded"] = "پروفایل بارگذاری شد:",
+        ["msg.inputInitFailed"] = "راه‌اندازی ورودی ناموفق بود:",
+        ["msg.deviceSetupFailed"] = "آماده‌سازی دستگاه ناموفق بود:",
+        ["msg.restartFailed"] = "UniPad دوباره اجرا نشد؛ لطفاً خودتان آن را اجرا کنید.",
+        ["msg.mappingDbInvalid"] = "فایل پایگاه داده دانلودشده معتبر نیست؛ نسخه قبلی حفظ شد.",
+        ["msg.mappingDbUpdated"] = "پایگاه داده نگاشت به‌روزرسانی شد. برای اعمال، برنامه را دوباره اجرا کنید.",
+        ["msg.mappingDbFailed"] = "به‌روزرسانی پایگاه داده نگاشت ناموفق بود:",
+        ["msg.openPathFailed"] = "این مسیر باز نشد:",
+        ["msg.autoMapKeyboard"] = "چیدمان پیش‌فرض کیبورد و ماوس اعمال شد.",
+        ["msg.autoMapSdl"] = "نگاشت از پایگاه داده کنترلرهای SDL انجام شد:",
+        ["msg.autoMapGuessed"] = "نگاشت حدس زده شد؛ لطفاً بررسی و اصلاح کنید:",
+        ["msg.autoMapFailed"] = "نگاشت حدس زده نشد؛ لطفاً دستی تعیین کنید:",
+        ["msg.allCleared"] = "همه نگاشت‌ها پاک شد.",
+        ["msg.applying"] = "در حال اعمال...",
+        ["msg.applyFailed"] = "اعمال ناموفق بود:",
+        ["msg.outputEnabled"] = "خروجی فعال شد.",
+        ["msg.outputDisabled"] = "خروجی غیرفعال شد.",
+        ["msg.profileCreated"] = "پروفایل ساخته شد:",
+        ["msg.profileDeleted"] = "پروفایل حذف شد:",
+        ["msg.profileProtected"] = "پروفایل پیش‌فرض را نمی‌توان حذف کرد.",
+        ["msg.logLevelRestart"] = "تغییر سطح لاگ پس از راه‌اندازی مجدد اعمال می‌شود.",
+        ["msg.startupEntryFailed"] = "ثبت اجرای خودکار در ویندوز به‌روزرسانی نشد.",
         ["msg.profileSaved"] = "پروفایل ذخیره شد.",
         ["msg.noDevice"] = "ابتدا یک دستگاه ورودی انتخاب کنید.",
         ["msg.xinputLimit"] = "ویندوز فقط ۴ اسلات XInput دارد. بازیکنان ۵ تا ۸ از خروجی DualShock 4 استفاده می‌کنند که بازی‌های صرفاً XInput آن‌ها را نمی‌بینند.",

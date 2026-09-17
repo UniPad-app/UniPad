@@ -107,6 +107,29 @@ public sealed class AppState : IDisposable
     /// </summary>
     public event Action<string>? StatusMessage;
 
+    /// <summary>
+    /// A status line described by what it says rather than by finished text.
+    /// </summary>
+    /// <param name="Key">Localisation key of the sentence.</param>
+    /// <param name="Detail">
+    /// The part that is never translated - a profile name, a device name, an exception message -
+    /// or an empty string when the sentence stands alone.
+    /// </param>
+    /// <param name="Fallback">
+    /// Ready-made English text for a consumer that has no string table, used for logging.
+    /// </param>
+    public readonly record struct StatusReport(string Key, string Detail, string Fallback);
+
+    /// <summary>
+    /// Raised alongside <see cref="StatusMessage"/> for messages that carry a localisation key.
+    /// <para>
+    /// The plain string event formats its text once, so a message already on screen keeps the
+    /// language it was raised in. Subscribers to this event can hold the key instead and rebuild
+    /// the line whenever the user switches language. Always raised on the UI thread.
+    /// </para>
+    /// </summary>
+    public event Action<StatusReport>? StatusReported;
+
     /// <summary>Starts input polling, initialises the driver and applies the loaded profile.</summary>
     public void Startup()
     {
@@ -119,7 +142,10 @@ public sealed class AppState : IDisposable
         catch (Exception ex)
         {
             Log.Error(ex, "Input backend failed to start");
-            RaiseStatus($"Input initialisation failed: {ex.Message}");
+            RaiseStatus(new StatusReport(
+                "msg.inputInitFailed",
+                ex.Message,
+                $"Input initialisation failed: {ex.Message}"));
         }
 
         // Let SDL finish discovering controllers before any virtual pad is created: it enumerates
@@ -313,7 +339,10 @@ public sealed class AppState : IDisposable
             catch (Exception ex)
             {
                 Log.Error(ex, "Hot-plug handling failed");
-                RaiseStatus($"Device setup failed: {ex.Message}");
+                RaiseStatus(new StatusReport(
+                    "msg.deviceSetupFailed",
+                    ex.Message,
+                    $"Device setup failed: {ex.Message}"));
             }
             finally
             {
@@ -349,6 +378,22 @@ public sealed class AppState : IDisposable
         }
 
         Dispatcher.UIThread.Post(() => handler.Invoke(message));
+    }
+
+    /// <summary>
+    /// Raises a keyed status report on the UI thread, falling back to the plain string event when
+    /// nothing is listening for keys.
+    /// </summary>
+    private void RaiseStatus(StatusReport report)
+    {
+        var keyed = StatusReported;
+        if (keyed is not null)
+        {
+            Dispatcher.UIThread.Post(() => keyed.Invoke(report));
+            return;
+        }
+
+        RaiseStatus(report.Fallback);
     }
 
     /// <summary>Pushes the current player mappings into the output manager.</summary>
@@ -426,7 +471,7 @@ public sealed class AppState : IDisposable
         ApplyMappings();
         ApplyCloaking();
 
-        RaiseStatus($"Profile '{name}' loaded.");
+        RaiseStatus(new StatusReport("msg.profileLoaded", name, $"Profile '{name}' loaded."));
     }
 
     /// <summary>Replaces one player's mapping, typically after a cancellable edit session.</summary>
@@ -491,8 +536,24 @@ public sealed class AppState : IDisposable
         return assigned;
     }
 
-    /// <summary>Raises a status message from a view model.</summary>
+    /// <summary>
+    /// Raises a status message from a view model.
+    /// </summary>
+    /// <remarks>
+    /// Kept for text that has no key behind it, such as a message produced by a core service.
+    /// Prefer the keyed overload wherever a key exists, so the line follows a language change.
+    /// </remarks>
     public void ReportStatus(string message) => RaiseStatus(message);
+
+    /// <summary>Raises a localisable status message from a view model.</summary>
+    /// <param name="key">Localisation key of the sentence.</param>
+    /// <param name="detail">Untranslated remainder, or null when the sentence stands alone.</param>
+    /// <param name="fallback">
+    /// English text used when no keyed subscriber is attached; defaults to the key itself, which
+    /// only shows up in a context with no user interface.
+    /// </param>
+    public void ReportStatus(string key, string? detail, string? fallback = null) =>
+        RaiseStatus(new StatusReport(key, detail ?? string.Empty, fallback ?? key));
 
     /// <inheritdoc />
     public void Dispose()

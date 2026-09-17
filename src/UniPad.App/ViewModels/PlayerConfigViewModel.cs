@@ -460,7 +460,7 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             device = _state.Input.Devices.FirstOrDefault();
             if (device is null)
             {
-                _state.ReportStatus(Strings.Get("msg.noDevice"));
+                _state.ReportStatus("msg.noDevice", null, "No device connected.");
                 return;
             }
         }
@@ -472,7 +472,21 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         RefreshDevices();
         _state.ApplyMappings();
         _state.ApplyCloaking();
-        _state.ReportStatus(result.Message);
+
+        // The core layer reports which path it took rather than a finished sentence, because it
+        // has no string table; its own Message is English and goes to the log. Reporting the key
+        // rather than the text lets the line follow a later language change.
+        var key = result.Outcome switch
+        {
+            AutoMapOutcome.KeyboardMouse => "msg.autoMapKeyboard",
+            AutoMapOutcome.SdlDatabase => "msg.autoMapSdl",
+            AutoMapOutcome.Guessed => "msg.autoMapGuessed",
+            _ => "msg.autoMapFailed",
+        };
+
+        // The keyboard layout message names no device, so it is shown on its own.
+        var detail = result.Outcome == AutoMapOutcome.KeyboardMouse ? null : result.DeviceName;
+        _state.ReportStatus(key, detail, result.Message);
     }
 
     /// <summary>Clears every binding of this player.</summary>

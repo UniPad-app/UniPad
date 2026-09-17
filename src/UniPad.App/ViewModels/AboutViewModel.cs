@@ -136,7 +136,7 @@ public sealed partial class AboutViewModel : ViewModelBase
             return;
         }
 
-        SetStatus("Could not relaunch UniPad; please start it again manually.");
+        SetStatus("msg.restartFailed", null, "Could not relaunch UniPad; please start it again manually.");
     }
 
     /// <summary>
@@ -157,16 +157,17 @@ public sealed partial class AboutViewModel : ViewModelBase
 
             if (content.Length < 1000)
             {
-                SetStatus("Downloaded mapping database looks invalid; keeping the existing one.");
+                SetStatus("msg.mappingDbInvalid", null,
+                    "Downloaded mapping database looks invalid; keeping the existing one.");
                 return;
             }
 
             await File.WriteAllTextAsync(PortablePaths.GameControllerDbFile, content).ConfigureAwait(true);
-            SetStatus("Mapping database updated. Restart UniPad to apply it.");
+            SetStatus("msg.mappingDbUpdated", null, "Mapping database updated. Restart UniPad to apply it.");
         }
         catch (Exception ex)
         {
-            SetStatus($"Mapping database update failed: {ex.Message}");
+            SetStatus("msg.mappingDbFailed", ex.Message, $"Mapping database update failed: {ex.Message}");
         }
         finally
         {
@@ -179,11 +180,24 @@ public sealed partial class AboutViewModel : ViewModelBase
 
     private bool CanRunMaintenance() => !IsBusy;
 
-    /// <summary>Mirrors the message into the page and the window's status strip.</summary>
+    /// <summary>Mirrors an already-formatted message into the page and the window's status strip.</summary>
     private void SetStatus(string message)
     {
         UpdateMessage = message;
         _state.ReportStatus(message);
+    }
+
+    /// <summary>
+    /// Mirrors a localisable message into both places, keeping the key so the status strip can
+    /// rebuild the line if the user switches language while it is still on screen.
+    /// </summary>
+    private void SetStatus(string key, string? detail, string fallback)
+    {
+        UpdateMessage = detail is null
+            ? Strings.Get(key)
+            : $"{Strings.Get(key)} {Strings.Isolate(detail)}";
+
+        _state.ReportStatus(key, detail, fallback);
     }
 
     private void OpenPath(string path)
@@ -200,7 +214,7 @@ public sealed partial class AboutViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SetStatus($"Could not open '{path}': {ex.Message}");
+            SetStatus("msg.openPathFailed", $"{path}: {ex.Message}", $"Could not open '{path}': {ex.Message}");
         }
     }
 }

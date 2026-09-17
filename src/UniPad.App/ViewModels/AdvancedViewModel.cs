@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using UniPad.App.Localization;
 using UniPad.App.Services;
 using UniPad.Core.SystemServices;
+using System.Globalization;
 
 namespace UniPad.App.ViewModels;
 
@@ -263,7 +264,7 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
         if (!StartupRegistration.SetRegistered(value))
         {
-            _state.ReportStatus("Could not update the Windows startup entry.");
+            _state.ReportStatus(Strings.Get("msg.startupEntryFailed"));
         }
 
         _state.Config.RunAtStartup = value;
@@ -277,7 +278,7 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
 
         _state.Config.VerboseLogging = value;
-        _state.ReportStatus("Log level changes take effect after a restart.");
+        _state.ReportStatus(Strings.Get("msg.logLevelRestart"));
     }
 
     partial void OnOutputEnabledChanged(bool value)
@@ -391,7 +392,43 @@ public sealed partial class AdvancedViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(MouseReturnSpeedText));
         OnPropertyChanged(nameof(ParagraphFlowDirection));
+
+        // The status bar shows the poll statistics the whole time, but UpdateDiagnostics only runs
+        // while the Advanced page is the visible category, so this line would otherwise keep the
+        // previous language until the page was opened again.
+        RefreshPollStatistics();
     }
+
+    /// <summary>Rebuilds the poll statistics line without touching the device monitor rows.</summary>
+    public void RefreshPollStatistics()
+    {
+        var devices = _state.Input.Devices.Count();
+
+        // The synthetic keyboard and mouse is not an SDL device and is counted separately.
+        if (_state.KeyboardMouse is { IsRunning: true })
+        {
+            devices++;
+        }
+
+        PollStatistics = FormatPollStatistics(devices);
+    }
+
+    /// <summary>
+    /// Builds the "Poll: 1000 Hz | Cycle: 18 us | Devices: 3" line.
+    /// <para>
+    /// Each value carries its unit and is isolated as one fragment: the separators and the spaces
+    /// around them are neutral characters, so in a right-to-left line the numbers, the units and
+    /// the pipes were being reordered independently of the labels they belong to.
+    /// </para>
+    /// </summary>
+    private string FormatPollStatistics(int deviceCount) => string.Join(
+        "  |  ",
+        $"{Strings.Get("status.pollRate")}: " +
+        Strings.Isolate($"{_state.Input.PollRateHz.ToString(CultureInfo.InvariantCulture)} {Strings.Get("unit.hz")}"),
+        $"{Strings.Get("status.cycle")}: " +
+        Strings.Isolate($"{_state.Input.LastLoopMicroseconds.ToString("F0", CultureInfo.InvariantCulture)} {Strings.Get("unit.microseconds")}"),
+        $"{Strings.Get("status.devices")}: " +
+        Strings.Isolate(deviceCount.ToString(CultureInfo.InvariantCulture)));
 
     /// <summary>
     /// Refreshes the raw device monitor. Called from the UI timer at a reduced rate, since string
@@ -448,9 +485,6 @@ public sealed partial class AdvancedViewModel : ViewModelBase
                 : string.Join("  ", snapshot.Hats.Select((v, idx) => $"{idx}:0x{v:X2}"));
         }
 
-        PollStatistics =
-            $"{Strings.Get("status.pollRate")}: {_state.Input.PollRateHz} Hz  |  " +
-            $"cycle {_state.Input.LastLoopMicroseconds:F0} us  |  " +
-            $"{Strings.Get("status.devices")}: {devices.Count}";
+        PollStatistics = FormatPollStatistics(devices.Count);
     }
 }
