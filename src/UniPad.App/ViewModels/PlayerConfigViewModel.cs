@@ -43,6 +43,20 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     /// </summary>
     private const int SlotResolveDelayMs = 350;
 
+    /// <summary>
+    /// Window over which repeated apply requests are collapsed into one.
+    /// <para>
+    /// A recycled control writes its stale value into a newly attached view model and the correct
+    /// value immediately after, so requests arrive in pairs a few milliseconds apart. Coalescing
+    /// them means the single apply that runs sees the final state, which the signature comparison
+    /// in AppState then recognises as unchanged - no pad is torn down and nothing is re-cloaked.
+    /// </para>
+    /// </summary>
+    private const int ApplyCoalesceMs = 250;
+
+    /// <summary>Cancels the pending coalesced apply when a newer request arrives.</summary>
+    private CancellationTokenSource? _pendingApply;
+
     private readonly AppState _state;
     private readonly BindCaptureService _capture;
     private readonly Dictionary<PadTarget, BindButtonViewModel> _bindLookup = [];
@@ -358,37 +372,69 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             return;
         }
 
-        _ = ApplyOutputAsync();
+        RequestApplyOutput();
     }
 
     /// <summary>
-    /// Pushes the current mappings into the output manager off the UI thread, then refreshes the
-    /// status captions.
+    /// Requests an output apply, collapsing requests that arrive within
+    /// <see cref="ApplyCoalesceMs"/> of each other into one.
+    /// </summary>
+    private void RequestApplyOutput()
+    {
+        var previous = _pendingApply;
+        _pendingApply = new CancellationTokenSource();
+
+        previous?.Cancel();
+        previous?.Dispose();
+
+        _ = ApplyOutputAsync(ApplyCoalesceMs, force: false, _pendingApply.Token);
+    }
+
+    /// <summary>Applies the output immediately, for an action the user asked for explicitly.</summary>
+    private Task ApplyOutputNowAsync(bool force = false)
+    {
+        _pendingApply?.Cancel();
+        return ApplyOutputAsync(0, force, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Pushes the current state into the output manager off the UI thread, then refreshes the
+    /// captions.
     /// </summary>
     /// <remarks>
-    /// ApplyMappings staggers pad connections by 300 ms each and waits for the input side to claim
-    /// every virtual pad, and ApplyCloaking blocks on an external process; both are documented as
-    /// not callable from the UI thread. Running them inline is what produced the short freeze when
-    /// returning to an active player's tab. The slot caption is then refreshed twice - once when
-    /// the pads are in place and once after a short delay - because Windows only reports the
-    /// XInput index some tens of milliseconds after Connect() returns.
+    /// ApplyOutput staggers pad connections and waits for each virtual pad to be claimed by the
+    /// input side, and the cloaking step blocks on an external process; both are documented as not
+    /// callable from the UI thread. The slot caption is refreshed twice - once when the pads are in
+    /// place and once after a short delay - because Windows only reports the XInput index some tens
+    /// of milliseconds after Connect() returns.
     /// </remarks>
-    private async Task ApplyOutputAsync()
+    private async Task ApplyOutputAsync(int delayMs, bool force, CancellationToken token)
     {
         try
         {
-            await Task.Run(() =>
+            if (delayMs > 0)
             {
-                _state.ApplyMappings();
-                _state.ApplyCloaking();
-            });
+                await Task.Delay(delayMs, token);
+            }
+
+            var applied = await Task.Run(() => _state.ApplyOutput(force), token);
 
             RefreshStatus();
 
-            await Task.Delay(SlotResolveDelayMs);
+            if (!applied)
+            {
+                // Nothing was touched, so no slot number can have changed either.
+                return;
+            }
+
+            await Task.Delay(SlotResolveDelayMs, token);
 
             _state.Output.RefreshUserIndices();
             RefreshStatus();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer request, which reports for both.
         }
         catch (Exception ex)
         {
@@ -396,18 +442,37 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Runs an edit that rewrites this player's bindings with the slot detached from the poll loop.
+    /// </summary>
+    /// <remarks>
+    /// The mapping engine reads the binding dictionary on the polling thread, so rewriting it from
+    /// the interface without detaching the slot first can be observed mid-resize.
+    /// </remarks>
+    public void EditMapping(Action edit)
+    {
+        using (_state.Output.BeginMappingEdit(Mapping.Index))
+        {
+            edit();
+        }
+    }
+
     // ---- Property change handlers push edits into the runtime mapping ----
 
     partial void OnIsEnabledChanged(bool value)
     {
-        if (_suppressPropagation)
+        // The comparison is the point: a recycled CheckBox writes its stale IsChecked into this
+        // freshly attached view model and the correct one straight after, and without this guard
+        // that pair disposed the pad and rebuilt it - the connect sound heard on returning from an
+        // inactive player's tab to an active one.
+        if (_suppressPropagation || Mapping.Enabled == value)
         {
             return;
         }
 
         Mapping.Enabled = value;
         UpdateStatusText();
-        _ = ApplyOutputAsync();
+        RequestApplyOutput();
     }
 
     partial void OnSelectedDeviceChanged(DeviceOption? value)
@@ -454,19 +519,19 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
         RefreshAllBinds();
         UpdateStatusText();
-        _ = ApplyOutputAsync();
+        RequestApplyOutput();
     }
 
     partial void OnOutputTypeChanged(VirtualPadType value)
     {
-        if (_suppressPropagation)
+        if (_suppressPropagation || Mapping.OutputType == value)
         {
             return;
         }
 
         Mapping.OutputType = value;
         UpdateStatusText();
-        _ = ApplyOutputAsync();
+        RequestApplyOutput();
     }
 
     partial void OnEmulateStickWithDpadChanged(bool value)
@@ -545,7 +610,13 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             }
         }
 
-        var result = AutoMapper.Apply(Mapping, device);
+        // AutoMapper rewrites the whole binding dictionary, which the poll loop reads.
+        AutoMapResult result;
+        using (_state.Output.BeginMappingEdit(Mapping.Index))
+        {
+            result = AutoMapper.Apply(Mapping, device);
+        }
+
         Mapping.Enabled = true;
 
         // The list is rebuilt before the values are pulled, not after: PullFromMapping resolves
@@ -570,16 +641,16 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         var detail = result.Outcome == AutoMapOutcome.KeyboardMouse ? null : result.DeviceName;
         _state.ReportStatus(key, detail, result.Message);
 
-        await ApplyOutputAsync();
+        await ApplyOutputNowAsync();
     }
 
     /// <summary>Clears every binding of this player.</summary>
     [RelayCommand]
     private void ClearAll()
     {
-        Mapping.ClearBindings();
+        EditMapping(Mapping.ClearBindings);
         RefreshAllBinds();
-        _ = ApplyOutputAsync();
+        RequestApplyOutput();
     }
 
     /// <summary>Restores default tuning values without touching the bindings.</summary>

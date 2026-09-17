@@ -119,7 +119,9 @@ public sealed partial class BindButtonViewModel : ViewModelBase
         binding.Toggle = IsToggle;
         binding.Threshold = Threshold;
 
-        _owner.Mapping.SetBinding(Target, binding);
+        // Adding a key can resize the dictionary the poll loop is reading, so the slot is held out
+        // of the loop for the write.
+        _owner.EditMapping(() => _owner.Mapping.SetBinding(Target, binding));
 
         if (_owner.Mapping.Device is null && binding.Device is not null && !binding.Device.IsSynthetic)
         {
@@ -133,7 +135,7 @@ public sealed partial class BindButtonViewModel : ViewModelBase
     [RelayCommand]
     private void Clear()
     {
-        _owner.Mapping.SetBinding(Target, null);
+        _owner.EditMapping(() => _owner.Mapping.SetBinding(Target, null));
         _owner.NotifyMappingChanged();
         Refresh();
     }
@@ -148,7 +150,7 @@ public sealed partial class BindButtonViewModel : ViewModelBase
             return;
         }
 
-        binding.Invert = !binding.Invert;
+        _owner.EditMapping(() => binding.Invert = !binding.Invert);
         _owner.NotifyMappingChanged();
         Refresh();
     }
@@ -163,7 +165,7 @@ public sealed partial class BindButtonViewModel : ViewModelBase
             return;
         }
 
-        binding.Toggle = !binding.Toggle;
+        _owner.EditMapping(() => binding.Toggle = !binding.Toggle);
         _owner.NotifyMappingChanged();
         Refresh();
     }
@@ -179,14 +181,14 @@ public sealed partial class BindButtonViewModel : ViewModelBase
         }
 
         // A cycling menu item is far quicker in practice than opening a dialog for one number.
-        binding.Threshold = binding.Threshold switch
+        _owner.EditMapping(() => binding.Threshold = binding.Threshold switch
         {
             < 0.2f => 0.25f,
             < 0.3f => 0.5f,
             < 0.6f => 0.75f,
             < 0.8f => 0.9f,
             _ => 0.15f,
-        };
+        });
 
         _owner.NotifyMappingChanged();
         Refresh();

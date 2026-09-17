@@ -431,8 +431,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             await Task.Run(() =>
             {
-                _state.ApplyMappings();
-                _state.ApplyCloaking();
+                using (_state.Output.BeginMappingEdit(-1))
+                {
+                    _state.ApplyMappings();
+                    _state.ApplyCloaking();
+                }
             });
 
             SetStatus("msg.profileSaved");

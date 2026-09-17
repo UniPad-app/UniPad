@@ -1,3 +1,4 @@
+using System.Text;
 using Avalonia.Threading;
 using Serilog;
 using UniPad.Core.Input;
@@ -25,6 +26,14 @@ public sealed class AppState : IDisposable
     /// other, and re-applying the mappings concurrently would fight over the virtual bus.
     /// </summary>
     private readonly SemaphoreSlim _hotplugGate = new(1, 1);
+
+    /// <summary>Serialises signature comparison and application of the output state.</summary>
+    private readonly object _applyGate = new();
+
+    /// <summary>
+    /// Signature of the output state as it was last actually applied. Null until the first apply.
+    /// </summary>
+    private string? _appliedSignature;
 
     private bool _disposed;
 
@@ -159,8 +168,10 @@ public sealed class AppState : IDisposable
         Output.Enabled = Config.OutputEnabled;
 
         ReattachDevices();
-        ApplyMappings();
-        ApplyCloaking();
+
+        // Forced, so the first apply also records the baseline signature every later comparison
+        // is made against.
+        ApplyOutput(force: true);
     }
 
     /// <summary>
@@ -270,7 +281,12 @@ public sealed class AppState : IDisposable
                 "Player {Player} device moved from port {Old} to {New}",
                 player.Index + 1, player.Device.Port, fallback.Id.Port);
 
-            RemapPlayerDevice(player, fallback.Id);
+            // The bindings are rewritten, so the slot is held out of the poll loop meanwhile.
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                RemapPlayerDevice(player, fallback.Id);
+            }
+
             player.DeviceName = fallback.Name;
             owner[fallback.Id.ToString()] = player.Index;
         }
@@ -333,8 +349,11 @@ public sealed class AppState : IDisposable
                 }
 
                 ReattachDevices();
-                ApplyMappings();
-                ApplyCloaking();
+
+                // Unforced: the signature covers device presence, so a controller that genuinely
+                // arrived changes it and the pads are rebuilt, while a spurious notification about
+                // hardware already accounted for costs nothing.
+                ApplyOutput();
             }
             catch (Exception ex)
             {
@@ -396,9 +415,82 @@ public sealed class AppState : IDisposable
         RaiseStatus(report.Fallback);
     }
 
+    /// <summary>
+    /// Applies the mappings and the cloaking, but only when something that affects the output has
+    /// actually changed.
+    /// </summary>
+    /// <remarks>
+    /// The interface calls this whenever a bound property changes, and a recycled control can write
+    /// a stale value into a freshly attached view model before the correct one arrives. Without a
+    /// comparison, that echo tore a working pad down and rebuilt it - the connect sound and the
+    /// short delay on returning to an active player's tab - and re-ran HidHide, which makes Windows
+    /// play the same sound on its own. Binding edits land here too and are skipped entirely, since
+    /// the mapping engine reads the bindings live and no pad has to be touched for them.
+    /// <para>
+    /// Blocks while pads are connected in slot order and while HidHide waits on an external
+    /// process. Must not be called from the UI thread.
+    /// </para>
+    /// </remarks>
+    /// <param name="force">
+    /// True to apply regardless of the comparison, for the explicit Apply action and for anything
+    /// that replaces the player list wholesale.
+    /// </param>
+    /// <returns>True when the output was actually re-applied.</returns>
+    public bool ApplyOutput(bool force = false)
+    {
+        lock (_applyGate)
+        {
+            var signature = ComposeOutputSignature();
+
+            if (!force && string.Equals(signature, _appliedSignature, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            ApplyMappings();
+            ApplyCloaking();
+
+            // Recomputed rather than reused: applying changes which pads are connected, and that
+            // is part of what the signature describes.
+            _appliedSignature = ComposeOutputSignature();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Describes everything that decides which virtual pads exist and which devices are cloaked.
+    /// </summary>
+    /// <remarks>
+    /// Pad connection state and physical device presence are both included, so a pad that died or a
+    /// controller that was plugged in changes the signature and is never mistaken for "nothing to
+    /// do". Binding contents are deliberately absent: they never require a pad to be recreated.
+    /// </remarks>
+    private string ComposeOutputSignature()
+    {
+        var builder = new StringBuilder();
+
+        builder.Append(Config.HidePhysicalControllers ? '1' : '0');
+        builder.Append(Output.Enabled ? '1' : '0');
+        builder.Append(Output.IsDriverAvailable ? '1' : '0');
+
+        foreach (var player in _players)
+        {
+            builder.Append('|')
+                   .Append(player.Index).Append(':')
+                   .Append(player.Enabled ? '1' : '0').Append(':')
+                   .Append((int)player.OutputType).Append(':')
+                   .Append(player.Device?.ToString() ?? "-").Append(':')
+                   .Append(Output.IsPadConnected(player.Index) ? '1' : '0').Append(':')
+                   .Append(Input.FindDevice(player.Device) is { IsConnected: true } ? '1' : '0');
+        }
+
+        return builder.ToString();
+    }
+
     /// <summary>Pushes the current player mappings into the output manager.</summary>
     /// <remarks>
     /// Blocks while pads are connected in slot order. Must not be called from the UI thread.
+    /// Prefer <see cref="ApplyOutput"/>, which skips the work when nothing relevant changed.
     /// </remarks>
     public void ApplyMappings()
     {
@@ -468,8 +560,10 @@ public sealed class AppState : IDisposable
         Config.ActiveProfile = name;
 
         ReattachDevices();
-        ApplyMappings();
-        ApplyCloaking();
+
+        // Forced: the player objects were replaced, so the pads must be rebuilt even when the new
+        // profile happens to describe the same devices.
+        ApplyOutput(force: true);
 
         RaiseStatus(new StatusReport("msg.profileLoaded", name, $"Profile '{name}' loaded."));
     }
@@ -489,13 +583,17 @@ public sealed class AppState : IDisposable
     {
         foreach (var player in _players)
         {
-            player.ClearBindings();
-            player.Enabled = false;
-            player.Device = null;
-            player.DeviceName = null;
+            // The poll loop reads these dictionaries, so each slot is detached while it is rewritten.
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                player.ClearBindings();
+                player.Enabled = false;
+                player.Device = null;
+                player.DeviceName = null;
+            }
         }
 
-        ApplyMappings();
+        ApplyOutput(force: true);
     }
 
     /// <summary>
@@ -522,7 +620,14 @@ public sealed class AppState : IDisposable
         for (var i = 0; i < _players.Count && i < devices.Count; i++)
         {
             var player = _players[i];
-            var result = AutoMapper.Apply(player, devices[i]);
+
+            // AutoMapper rewrites the whole binding dictionary, so the slot is held out of the
+            // poll loop for the duration.
+            AutoMapResult result;
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                result = AutoMapper.Apply(player, devices[i]);
+            }
 
             if (result.Success)
             {
@@ -531,8 +636,7 @@ public sealed class AppState : IDisposable
             }
         }
 
-        ApplyMappings();
-        ApplyCloaking();
+        ApplyOutput(force: true);
         return assigned;
     }
 
