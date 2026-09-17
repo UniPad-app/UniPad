@@ -330,24 +330,57 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>Auto-detects and maps every connected controller in one action.</summary>
+    /// <remarks>
+    /// AutoDetectAll applies the mappings and the cloaking itself, so it carries the same "not from
+    /// the UI thread" contract as ApplyMappings and is pushed onto a worker here. The XInput slot
+    /// numbers are then re-read after a short delay, because Windows has not assigned them yet
+    /// when the pads have only just been plugged in - without that second pass the slot caption
+    /// stayed empty until the tab was left and revisited.
+    /// </remarks>
     [RelayCommand]
-    private void AutoDetectAll()
+    private async Task AutoDetectAllAsync()
     {
-        var count = _state.AutoDetectAll();
+        IsApplying = true;
+        SetStatus("msg.applying");
 
-        foreach (var player in Players)
+        try
         {
-            player.PullFromMapping();
-            player.RefreshDevices();
-        }
+            var count = await Task.Run(_state.AutoDetectAll);
 
-        if (count > 0)
-        {
-            SetStatus("msg.autoMapped", $"({count.ToString(CultureInfo.InvariantCulture)})");
+            foreach (var player in Players)
+            {
+                // Devices before values: PullFromMapping resolves the picker selection against
+                // the device list, which the detection pass has just changed.
+                player.RefreshDevices();
+                player.PullFromMapping();
+            }
+
+            await Task.Delay(350);
+            _state.Output.RefreshUserIndices();
+
+            foreach (var player in Players)
+            {
+                player.RefreshStatus();
+            }
+
+            UpdateConnectedSummary();
+
+            if (count > 0)
+            {
+                SetStatus("msg.autoMapped", $"({count.ToString(CultureInfo.InvariantCulture)})");
+            }
+            else
+            {
+                SetStatus("msg.noDevice");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            SetStatus("msg.noDevice");
+            SetStatus("msg.applyFailed", ex.Message);
+        }
+        finally
+        {
+            IsApplying = false;
         }
     }
 
@@ -413,7 +446,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             IsApplying = false;
 
             // Pad connection state changed underneath us, so the per-player status lines and the
-            // summary in the status bar are both stale.
+            // summary in the status bar are both stale. The user index is re-read first: pads that
+            // were plugged in moments ago do not have one yet when ApplyMappings returns.
+            _state.Output.RefreshUserIndices();
+
             foreach (var player in Players)
             {
                 player.RefreshStatus();
@@ -447,8 +483,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         foreach (var player in Players)
         {
-            player.PullFromMapping();
             player.RefreshDevices();
+            player.PullFromMapping();
         }
     }
 
@@ -475,8 +511,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         foreach (var player in Players)
         {
-            player.PullFromMapping();
             player.RefreshDevices();
+            player.PullFromMapping();
         }
     }
 }

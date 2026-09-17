@@ -33,6 +33,16 @@ public sealed record DeviceOption(DeviceId? Id, string Display)
 /// </summary>
 public sealed partial class PlayerConfigViewModel : ViewModelBase
 {
+    /// <summary>
+    /// How long to wait before re-reading the XInput slot number after pads were connected.
+    /// <para>
+    /// ViGEm's user index is not available the instant <c>Connect()</c> returns - Windows assigns
+    /// it a few dozen milliseconds later - so the refresh that runs as part of ApplyMappings finds
+    /// nothing and the slot caption stays empty. A second, delayed read is what fills it in.
+    /// </para>
+    /// </summary>
+    private const int SlotResolveDelayMs = 350;
+
     private readonly AppState _state;
     private readonly BindCaptureService _capture;
     private readonly Dictionary<PadTarget, BindButtonViewModel> _bindLookup = [];
@@ -111,8 +121,10 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             _bindLookup[target] = vm;
         }
 
-        PullFromMapping();
+        // Devices first: PullFromMapping resolves SelectedDevice against the Devices collection,
+        // so with an empty list it would select nothing and leave the picker blank.
         RefreshDevices();
+        PullFromMapping();
 
         // The four slider captions are built in code, so they have to be rebuilt by hand when the
         // language changes; the bindings themselves cannot see it.
@@ -266,39 +278,57 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     }
 
     /// <summary>Rebuilds the device picker from the currently connected devices.</summary>
+    /// <remarks>
+    /// The entire rebuild is guarded, not just the final re-selection. Devices is the ItemsSource
+    /// of a ComboBox whose SelectedItem is bound two-way, and clearing the collection makes the
+    /// control coerce its own selection to null and push that null straight back into
+    /// SelectedDevice. With the guard raised only around the last assignment, that null reached
+    /// OnSelectedDeviceChanged, wiped Mapping.Device and tore the pad down - and because the
+    /// re-selection was suppressed, nothing ever put the device back. Auto Map therefore looked
+    /// applied, with the tick set and every bind filled in, while ApplyMappings saw a null device
+    /// and created no pad at all: no connect sound, no XInput slot.
+    /// </remarks>
     public void RefreshDevices()
     {
         var previous = Mapping.Device;
 
-        Devices.Clear();
-        Devices.Add(new DeviceOption(null, Strings.Get("player.any")));
-
-        // A single combined entry rather than separate keyboard and mouse ones: a player slot holds
-        // exactly one device, so splitting them would make it impossible to use both at once. When no
-        // mouse is attached its axes simply stay at rest and only the keys do anything.
-        if (_state.KeyboardMouse is not null)
-        {
-            Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
-        }
-
-        foreach (var device in _state.Input.Devices.OrderBy(d => d.Name).ThenBy(d => d.Id.Port))
-        {
-            Devices.Add(new DeviceOption(device.Id, device.DisplayName));
-        }
-
-        // Keep a saved-but-absent device visible so the user understands why nothing works.
-        if (previous is not null && Devices.All(d => d.Id != previous))
-        {
-            var label = Mapping.DeviceName is null
-                ? previous.ToString()
-                : $"{Mapping.DeviceName} ({Strings.Get("player.notConnected")})";
-
-            Devices.Add(new DeviceOption(previous, label));
-        }
-
         _suppressPropagation = true;
-        SelectedDevice = Devices.FirstOrDefault(d => d.Id == previous) ?? Devices[0];
-        _suppressPropagation = false;
+
+        try
+        {
+            Devices.Clear();
+            Devices.Add(new DeviceOption(null, Strings.Get("player.any")));
+
+            // A single combined entry rather than separate keyboard and mouse ones: a player slot
+            // holds exactly one device, so splitting them would make it impossible to use both at
+            // once. When no mouse is attached its axes simply stay at rest and only the keys do
+            // anything.
+            if (_state.KeyboardMouse is not null)
+            {
+                Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
+            }
+
+            foreach (var device in _state.Input.Devices.OrderBy(d => d.Name).ThenBy(d => d.Id.Port))
+            {
+                Devices.Add(new DeviceOption(device.Id, device.DisplayName));
+            }
+
+            // Keep a saved-but-absent device visible so the user understands why nothing works.
+            if (previous is not null && Devices.All(d => d.Id != previous))
+            {
+                var label = Mapping.DeviceName is null
+                    ? previous.ToString()
+                    : $"{Mapping.DeviceName} ({Strings.Get("player.notConnected")})";
+
+                Devices.Add(new DeviceOption(previous, label));
+            }
+
+            SelectedDevice = Devices.FirstOrDefault(d => d.Id == previous) ?? Devices[0];
+        }
+        finally
+        {
+            _suppressPropagation = false;
+        }
 
         UpdateStatusText();
     }
@@ -328,7 +358,42 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             return;
         }
 
-        _state.ApplyMappings();
+        _ = ApplyOutputAsync();
+    }
+
+    /// <summary>
+    /// Pushes the current mappings into the output manager off the UI thread, then refreshes the
+    /// status captions.
+    /// </summary>
+    /// <remarks>
+    /// ApplyMappings staggers pad connections by 300 ms each and waits for the input side to claim
+    /// every virtual pad, and ApplyCloaking blocks on an external process; both are documented as
+    /// not callable from the UI thread. Running them inline is what produced the short freeze when
+    /// returning to an active player's tab. The slot caption is then refreshed twice - once when
+    /// the pads are in place and once after a short delay - because Windows only reports the
+    /// XInput index some tens of milliseconds after Connect() returns.
+    /// </remarks>
+    private async Task ApplyOutputAsync()
+    {
+        try
+        {
+            await Task.Run(() =>
+            {
+                _state.ApplyMappings();
+                _state.ApplyCloaking();
+            });
+
+            RefreshStatus();
+
+            await Task.Delay(SlotResolveDelayMs);
+
+            _state.Output.RefreshUserIndices();
+            RefreshStatus();
+        }
+        catch (Exception ex)
+        {
+            _state.ReportStatus("msg.applyFailed", ex.Message, $"Apply failed: {ex.Message}");
+        }
     }
 
     // ---- Property change handlers push edits into the runtime mapping ----
@@ -341,9 +406,8 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         }
 
         Mapping.Enabled = value;
-        _state.ApplyMappings();
-        _state.ApplyCloaking();
         UpdateStatusText();
+        _ = ApplyOutputAsync();
     }
 
     partial void OnSelectedDeviceChanged(DeviceOption? value)
@@ -353,7 +417,20 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             return;
         }
 
-        var newDevice = value?.Id;
+        // A null selection is never something the user can pick: the "Any / none" entry is a real
+        // DeviceOption whose Id happens to be null. A null therefore only ever arrives from the
+        // ComboBox coercing its own selection - while its items are being rebuilt, or while the
+        // tab host swaps this view's data context and the previously selected item is briefly not
+        // in the new list - and acting on it unplugs a pad that was working. That is what made the
+        // connect sound replay, with a short delay, every time an active player's tab was
+        // revisited. The control writes the correct value immediately afterwards, so dropping this
+        // one notification loses nothing.
+        if (value is null)
+        {
+            return;
+        }
+
+        var newDevice = value.Id;
         if (Mapping.Device == newDevice)
         {
             return;
@@ -376,9 +453,8 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         }
 
         RefreshAllBinds();
-        _state.ApplyMappings();
-        _state.ApplyCloaking();
         UpdateStatusText();
+        _ = ApplyOutputAsync();
     }
 
     partial void OnOutputTypeChanged(VirtualPadType value)
@@ -389,8 +465,8 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         }
 
         Mapping.OutputType = value;
-        _state.ApplyMappings();
         UpdateStatusText();
+        _ = ApplyOutputAsync();
     }
 
     partial void OnEmulateStickWithDpadChanged(bool value)
@@ -450,8 +526,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     }
 
     /// <summary>Runs automatic mapping against the selected device.</summary>
+    /// <remarks>
+    /// The generated command is still called AutoMapCommand: the source generator drops the Async
+    /// suffix, so the XAML binding is unaffected.
+    /// </remarks>
     [RelayCommand]
-    private void AutoMap()
+    private async Task AutoMapAsync()
     {
         var device = _state.Input.FindDevice(Mapping.Device);
         if (device is null)
@@ -468,10 +548,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         var result = AutoMapper.Apply(Mapping, device);
         Mapping.Enabled = true;
 
-        PullFromMapping();
+        // The list is rebuilt before the values are pulled, not after: PullFromMapping resolves
+        // SelectedDevice against Devices, and a device auto-mapping just assigned is not in that
+        // collection yet. The old order left the picker showing the wrong entry until the next
+        // refresh.
         RefreshDevices();
-        _state.ApplyMappings();
-        _state.ApplyCloaking();
+        PullFromMapping();
 
         // The core layer reports which path it took rather than a finished sentence, because it
         // has no string table; its own Message is English and goes to the log. Reporting the key
@@ -487,6 +569,8 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         // The keyboard layout message names no device, so it is shown on its own.
         var detail = result.Outcome == AutoMapOutcome.KeyboardMouse ? null : result.DeviceName;
         _state.ReportStatus(key, detail, result.Message);
+
+        await ApplyOutputAsync();
     }
 
     /// <summary>Clears every binding of this player.</summary>
@@ -495,7 +579,7 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     {
         Mapping.ClearBindings();
         RefreshAllBinds();
-        _state.ApplyMappings();
+        _ = ApplyOutputAsync();
     }
 
     /// <summary>Restores default tuning values without touching the bindings.</summary>
