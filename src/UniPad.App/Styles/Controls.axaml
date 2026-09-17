@@ -121,32 +121,46 @@
   </Style>
 
   <!-- ============ Group box (Qt style: caption sits on the border) ============ -->
+  <!--
+    Two layers in a Panel rather than a Grid: the frame is pushed down by half a caption line so
+    the caption chip straddles its top edge, and the chip - declared second - paints its opaque
+    background over that edge, which is what creates the notched look.
+
+    The caption row must be Auto. It used to be a fixed eight pixels with the frame starting at the
+    top of it, which left the caption inside an eight-pixel slot: Latin text survived, but a
+    Persian line is taller and lost its ascenders and descenders, so headings such as the D-Pad
+    box and the emulated devices box on the Advanced page were cut in half. Sizing the row to the
+    text and offsetting the frame instead keeps the geometry identical - the gap between the border
+    and the content is unchanged - while the caption can be as tall as its script needs.
+  -->
   <Style Selector="HeaderedContentControl.groupBox">
     <Setter Property="Margin" Value="3" />
     <Setter Property="Template">
       <ControlTemplate>
-        <Grid RowDefinitions="8,*">
-          <Border Grid.Row="0" Grid.RowSpan="2"
+        <Panel>
+          <!-- Frame: starts half a caption line down, so the chip sits on its top edge. -->
+          <Border Margin="0,8,0,0"
                   Background="{DynamicResource PanelBackgroundBrush}"
                   BorderBrush="{DynamicResource BorderBrush}"
                   BorderThickness="1"
                   CornerRadius="{DynamicResource StandardCornerRadius}" />
 
-          <!-- Caption chip: an opaque background over the border creates the notched look. -->
-          <Border Grid.Row="0"
-                  Background="{DynamicResource PanelBackgroundBrush}"
-                  HorizontalAlignment="Center"
-                  Padding="6,0"
-                  Margin="0,-1,0,0">
-            <TextBlock Text="{TemplateBinding Header}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       FontSize="{DynamicResource FontSizeSmall}" />
-          </Border>
+          <Grid RowDefinitions="Auto,*">
+            <!-- Caption chip: opaque, so it hides the stretch of border behind it. -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelBackgroundBrush}"
+                    HorizontalAlignment="Center"
+                    Padding="6,0">
+              <TextBlock Text="{TemplateBinding Header}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         FontSize="{DynamicResource FontSizeSmall}" />
+            </Border>
 
-          <ContentPresenter Grid.Row="1"
-                            Content="{TemplateBinding Content}"
-                            Margin="6,4,6,6" />
-        </Grid>
+            <ContentPresenter Grid.Row="1"
+                              Content="{TemplateBinding Content}"
+                              Margin="6,4,6,6" />
+          </Grid>
+        </Panel>
       </ControlTemplate>
     </Setter>
   </Style>
