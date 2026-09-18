@@ -377,11 +377,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Clears every binding of every player.</summary>
+    /// <summary>Clears every binding of every player and returns them all to factory settings.</summary>
     [RelayCommand]
     private void ClearAll()
     {
         _state.ClearAll();
+
+        // The runtime mappings are reset directly rather than through each tab, so a player whose
+        // tab has never been opened is reset too.
+        foreach (var mapping in _state.Players)
+        {
+            mapping.RestoreDefaults();
+        }
 
         foreach (var player in Players)
         {

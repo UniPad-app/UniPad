@@ -15,14 +15,37 @@ public enum VirtualPadType
 /// <summary>Per-stick tuning values.</summary>
 public sealed class StickSettings
 {
+    /// <summary>Factory dead zone, as a fraction of full travel.</summary>
+    public const float DefaultDeadzone = 0.15f;
+
+    /// <summary>Factory output scaling.</summary>
+    public const float DefaultRange = 0.95f;
+
+    /// <summary>Factory modifier multiplier.</summary>
+    public const float DefaultModifierScale = 0.5f;
+
     /// <summary>Radial dead zone as a fraction of full travel.</summary>
-    public float Deadzone { get; set; } = 0.15f;
+    public float Deadzone { get; set; } = DefaultDeadzone;
 
     /// <summary>Output scaling as a fraction; values below 1 reduce maximum deflection.</summary>
-    public float Range { get; set; } = 0.95f;
+    public float Range { get; set; } = DefaultRange;
 
     /// <summary>Multiplier applied while the stick's modifier button is held.</summary>
-    public float ModifierScale { get; set; } = 0.5f;
+    public float ModifierScale { get; set; } = DefaultModifierScale;
+
+    /// <summary>
+    /// Returns every value to its factory setting, in place.
+    /// <para>
+    /// In place rather than by replacing the instance, because the mapping engine reads these
+    /// settings through the reference it was given when the player was set up.
+    /// </para>
+    /// </summary>
+    public void Reset()
+    {
+        Deadzone = DefaultDeadzone;
+        Range = DefaultRange;
+        ModifierScale = DefaultModifierScale;
+    }
 
     /// <summary>Deep copy.</summary>
     public StickSettings Clone() => new()
@@ -36,11 +59,24 @@ public sealed class StickSettings
 /// <summary>Vibration routing configuration for a player.</summary>
 public sealed class VibrationSettings
 {
+    /// <summary>Whether rumble is forwarded by default.</summary>
+    public const bool DefaultEnabled = true;
+
+    /// <summary>Factory forwarding strength, as a percentage.</summary>
+    public const int DefaultStrength = 100;
+
     /// <summary>Whether rumble from the game is forwarded to the physical device.</summary>
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = DefaultEnabled;
 
     /// <summary>Strength percentage applied to the forwarded amplitude, 0..100.</summary>
-    public int Strength { get; set; } = 100;
+    public int Strength { get; set; } = DefaultStrength;
+
+    /// <summary>Returns every value to its factory setting, in place.</summary>
+    public void Reset()
+    {
+        Enabled = DefaultEnabled;
+        Strength = DefaultStrength;
+    }
 
     /// <summary>Deep copy.</summary>
     public VibrationSettings Clone() => new() { Enabled = Enabled, Strength = Strength };
@@ -67,11 +103,14 @@ public sealed class PlayerMapping
     /// <summary>Last known friendly name of the device, kept so the UI can show it while unplugged.</summary>
     public string? DeviceName { get; set; }
 
+    /// <summary>Whether D-Pad bindings also drive the left stick by default.</summary>
+    public const bool DefaultEmulateStickWithDpad = true;
+
     /// <summary>
     /// When true, D-Pad bindings additionally drive the left stick. Essential for digital-only
     /// controllers because most modern games read only the analogue stick.
     /// </summary>
-    public bool EmulateStickWithDpad { get; set; } = true;
+    public bool EmulateStickWithDpad { get; set; } = DefaultEmulateStickWithDpad;
 
     /// <summary>Left stick tuning.</summary>
     public StickSettings LeftStick { get; set; } = new();
@@ -103,6 +142,33 @@ public sealed class PlayerMapping
 
     /// <summary>Removes every binding but keeps device assignment and tuning.</summary>
     public void ClearBindings() => Bindings.Clear();
+
+    /// <summary>
+    /// Returns the analogue tuning of both sticks to its factory setting, leaving the bindings,
+    /// the device assignment, vibration and stick emulation alone.
+    /// <para>
+    /// This is the narrow reset offered per player. It used to also cover vibration and stick
+    /// emulation, which meant a user restoring a dead zone they had pushed too far silently lost
+    /// their rumble settings as well.
+    /// </para>
+    /// </summary>
+    public void RestoreStickDefaults()
+    {
+        LeftStick.Reset();
+        RightStick.Reset();
+    }
+
+    /// <summary>
+    /// Returns every tunable value to its factory setting, leaving only the bindings and the
+    /// device assignment. Paired with <see cref="ClearBindings"/> it takes a player back to the
+    /// state it had on a first run.
+    /// </summary>
+    public void RestoreDefaults()
+    {
+        RestoreStickDefaults();
+        Vibration.Reset();
+        EmulateStickWithDpad = DefaultEmulateStickWithDpad;
+    }
 
     /// <summary>True when at least one target is bound.</summary>
     public bool HasAnyBinding => Bindings.Count > 0;

@@ -644,26 +644,42 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         await ApplyOutputNowAsync();
     }
 
-    /// <summary>Clears every binding of this player.</summary>
+    /// <summary>Clears every binding of this player and returns its settings to factory values.</summary>
+    /// <remarks>
+    /// Clearing the bindings alone left a half-reset player: the sliders, the rumble setting and
+    /// stick emulation kept whatever they had been changed to, so "clear all" did not actually
+    /// return the tab to the state it started in. Both halves happen inside one edit session, so
+    /// the poll loop never observes a player with its bindings gone but its tuning not yet reset.
+    /// </remarks>
     [RelayCommand]
     private void ClearAll()
     {
-        EditMapping(Mapping.ClearBindings);
-        RefreshAllBinds();
+        EditMapping(() =>
+        {
+            Mapping.ClearBindings();
+            Mapping.RestoreDefaults();
+        });
+
+        // Pulls rather than only refreshing the binds: the tuning values changed too, and they are
+        // bound to the sliders and their captions.
+        PullFromMapping();
         RequestApplyOutput();
     }
 
-    /// <summary>Restores default tuning values without touching the bindings.</summary>
+    /// <summary>Restores the default dead zone and range of both sticks.</summary>
+    /// <remarks>
+    /// Deliberately narrower than its name once suggested. It used to reset vibration, vibration
+    /// strength and stick emulation as well, none of which the button names, so someone correcting
+    /// a dead zone had their rumble configuration quietly changed underneath them. The full reset
+    /// lives on Clear All.
+    /// </remarks>
     [RelayCommand]
     private void RestoreDefaults()
     {
-        LeftDeadzone = 0.15f;
-        LeftRange = 0.95f;
-        RightDeadzone = 0.15f;
-        RightRange = 0.95f;
-        VibrationEnabled = true;
-        VibrationStrength = 100;
-        EmulateStickWithDpad = true;
+        LeftDeadzone = StickSettings.DefaultDeadzone;
+        LeftRange = StickSettings.DefaultRange;
+        RightDeadzone = StickSettings.DefaultDeadzone;
+        RightRange = StickSettings.DefaultRange;
     }
 
     /// <summary>Buzzes the assigned controller so the user can tell which one this player is.</summary>
