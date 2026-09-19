@@ -217,7 +217,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.autoDetectAll"] = "Auto-Detect All",
 
         ["tray.open"] = "Open UniPad",
-        ["tray.toggle"] = "Enable / Disable Output",
+        ["tray.enableOutput"] = "Enable Output",
+        ["tray.disableOutput"] = "Disable Output",
         ["tray.exit"] = "Exit",
         ["tray.tooltip"] = "UniPad - Universal Controller Mapper",
 
@@ -416,7 +417,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["action.autoDetectAll"] = "شناسایی خودکار همه",
 
         ["tray.open"] = "باز کردن UniPad",
-        ["tray.toggle"] = "فعال / غیرفعال کردن خروجی",
+        ["tray.enableOutput"] = "فعال کردن خروجی",
+        ["tray.disableOutput"] = "غیرفعال کردن خروجی",
         ["tray.exit"] = "خروج",
         ["tray.tooltip"] = "UniPad - نگاشت‌گر همه‌کاره کنترلر",
 

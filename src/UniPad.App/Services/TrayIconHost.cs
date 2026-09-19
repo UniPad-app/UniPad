@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using Serilog;
@@ -19,6 +20,7 @@ public sealed class TrayIconHost : IDisposable
     private readonly MainWindowViewModel _viewModel;
     private TrayIcon? _icon;
     private TrayIcons? _icons;
+    private NativeMenuItem? _toggleItem;
     private bool _disposed;
 
     /// <summary>Creates and installs the tray icon for the given window view model.</summary>
@@ -42,6 +44,10 @@ public sealed class TrayIconHost : IDisposable
 
             RebuildMenu();
             Strings.Instance.LanguageChanged += RebuildMenu;
+
+            // The toggle caption names the action rather than the setting, so it has to follow
+            // the switch itself - including when it is changed from the Advanced page.
+            _viewModel.Advanced.PropertyChanged += OnAdvancedPropertyChanged;
         }
         catch (Exception ex)
         {
@@ -91,11 +97,10 @@ public sealed class TrayIconHost : IDisposable
 
         menu.Add(new NativeMenuItemSeparator());
 
-        menu.Add(new NativeMenuItem
-        {
-            Header = Strings.Get("tray.toggle"),
-            Command = _viewModel.ToggleOutputCommand,
-        });
+        // Held onto so a later toggle only rewrites this caption instead of rebuilding the menu.
+        _toggleItem = new NativeMenuItem { Command = _viewModel.ToggleOutputCommand };
+        UpdateToggleCaption();
+        menu.Add(_toggleItem);
 
         menu.Add(new NativeMenuItemSeparator());
 
@@ -108,6 +113,33 @@ public sealed class TrayIconHost : IDisposable
         _icon.Menu = menu;
     }
 
+    /// <summary>
+    /// Names what the entry will do rather than what it controls.
+    /// <para>
+    /// A single "Enable / Disable Output" caption meant the only way to find out which of the two
+    /// a click would give you was to open the Advanced page and read the checkbox. The entry now
+    /// reads "Disable Output" while output is on, and the reverse while it is off.
+    /// </para>
+    /// </summary>
+    private void UpdateToggleCaption()
+    {
+        if (_toggleItem is not null)
+        {
+            _toggleItem.Header = Strings.Get(
+                _viewModel.Advanced.OutputEnabled ? "tray.disableOutput" : "tray.enableOutput");
+        }
+    }
+
+    private void OnAdvancedPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // A null or empty name means "everything changed", which is worth honouring here.
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName == nameof(AdvancedViewModel.OutputEnabled))
+        {
+            UpdateToggleCaption();
+        }
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -118,6 +150,8 @@ public sealed class TrayIconHost : IDisposable
 
         _disposed = true;
         Strings.Instance.LanguageChanged -= RebuildMenu;
+        _viewModel.Advanced.PropertyChanged -= OnAdvancedPropertyChanged;
+        _toggleItem = null;
 
         if (_icon is not null)
         {

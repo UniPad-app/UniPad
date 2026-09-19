@@ -298,8 +298,35 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
 
         _state.Config.HidePhysicalControllers = value;
-        _state.ApplyCloaking();
-        RefreshDriverStatus();
+        _ = ApplyCloakingAsync();
+    }
+
+    /// <summary>
+    /// Applies a cloaking change off the UI thread and through the output signature.
+    /// <para>
+    /// Two reasons not to call ApplyCloaking from here directly. It waits on an external process
+    /// and may raise an elevation prompt, so doing it inline froze the window for as long as the
+    /// user took to answer. And the cloak flag is part of the signature: changing it behind the
+    /// signature's back left the recorded state stale, so the next hot-plug found a difference
+    /// and rebuilt every pad to resolve it. ApplyOutput does the cloaking and records what it
+    /// applied.
+    /// </para>
+    /// </summary>
+    private async Task ApplyCloakingAsync()
+    {
+        try
+        {
+            await Task.Run(() => _state.ApplyOutput()).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _state.ReportStatus("msg.applyFailed", ex.Message, $"Apply failed: {ex.Message}");
+        }
+        finally
+        {
+            // The hidden-device count sits in the HidHide line, so it is stale until this runs.
+            RefreshDriverStatus();
+        }
     }
 
     partial void OnStartMinimizedToTrayChanged(bool value)
@@ -318,6 +345,14 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Writes the autostart entry, and refuses to claim a state the registry does not have.
+    /// <para>
+    /// The box used to stay ticked after a failed write. Since the setting is read back from the
+    /// registry on the next launch, it then appeared to have un-ticked itself, which reads as a
+    /// forgotten preference rather than as the refusal it actually was.
+    /// </para>
+    /// </summary>
     partial void OnRunAtStartupChanged(bool value)
     {
         if (_suppress)
@@ -327,7 +362,13 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
         if (!StartupRegistration.SetRegistered(value))
         {
-            _state.ReportStatus(Strings.Get("msg.startupEntryFailed"));
+            _state.ReportStatus(
+                "msg.startupEntryFailed", null, "Could not update the Windows startup entry.");
+
+            _suppress = true;
+            RunAtStartup = !value;
+            _suppress = false;
+            return;
         }
 
         _state.Config.RunAtStartup = value;
@@ -341,9 +382,14 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
 
         _state.Config.VerboseLogging = value;
-        _state.ReportStatus(Strings.Get("msg.logLevelRestart"));
+        _state.ReportStatus(
+            "msg.logLevelRestart", null, "Log level changes take effect after a restart.");
     }
 
+    /// <summary>
+    /// The master output switch. It gates evaluation inside the poll loop and submits a neutral
+    /// state on its way down, so no pad is created or destroyed and nothing has to be reapplied.
+    /// </summary>
     partial void OnOutputEnabledChanged(bool value)
     {
         if (!_suppress)
@@ -397,7 +443,8 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
 
         _state.Config.KeyboardMouseEnabled = value;
-        _state.ReportStatus(Strings.Get("msg.restartRequired"));
+        _state.ReportStatus(
+            "msg.restartRequired", null, "This change takes effect after a restart.");
     }
 
     partial void OnMouseSensitivityChanged(double value)

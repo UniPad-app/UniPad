@@ -54,7 +54,23 @@ public partial class App : Application
             viewModel.HideRequested += () => _window?.HideToTray();
             viewModel.ShowRequested += () => _window?.RestoreFromTray();
 
-            desktop.MainWindow = _window;
+            // Computed before the window is handed to the lifetime, because that is what decides whether
+            // it is handed over at all.
+            var startHidden = StartHidden || _state.Config.StartMinimizedToTray;
+
+            if (startHidden)
+            {
+                // Deliberately not assigned to desktop.MainWindow: the lifetime shows whatever window it
+                // is given once initialisation returns, which undid the HideToTray below and made both
+                // --tray and the setting look like they did nothing. ShutdownMode is OnExplicitShutdown,
+                // so having no main window keeps the process alive rather than ending it.
+                _window.Show();
+                _window.HideToTray();
+            }
+            else
+            {
+                desktop.MainWindow = _window;
+            }
 
             // Installed after the window exists so the menu commands are already live.
             _tray = new TrayIconHost(viewModel);
@@ -65,15 +81,6 @@ public partial class App : Application
             {
                 guard.ActivationRequested += OnActivationRequested;
                 guard.StartListening();
-            }
-
-            var startHidden = StartHidden || _state.Config.StartMinimizedToTray;
-            if (startHidden)
-            {
-                // Show then hide so Avalonia completes window creation; a never-shown window
-                // cannot be restored reliably from the tray on Windows.
-                _window.Show();
-                _window.HideToTray();
             }
 
             desktop.Exit += (_, _) => Cleanup();

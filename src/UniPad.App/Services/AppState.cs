@@ -477,13 +477,17 @@ public sealed class AppState : IDisposable
     /// Pad connection state and physical device presence are both included, so a pad that died or a
     /// controller that was plugged in changes the signature and is never mistaken for "nothing to
     /// do". Binding contents are deliberately absent: they never require a pad to be recreated.
+    /// /// Binding contents are deliberately absent: they never require a pad to be recreated, and
+    /// neither does the master output switch - it gates evaluation inside the poll loop and submits
+    /// a neutral state on its way down, so nothing is created or destroyed when it flips. Leaving it
+    /// in only ever made the recorded signature disagree with reality, and the next hot-plug then
+    /// rebuilt every pad to resolve a difference nobody had asked for.
     /// </remarks>
     private string ComposeOutputSignature()
     {
         var builder = new StringBuilder();
 
         builder.Append(Config.HidePhysicalControllers ? '1' : '0');
-        builder.Append(Output.Enabled ? '1' : '0');
         builder.Append(Output.IsDriverAvailable ? '1' : '0');
 
         foreach (var player in _players)
