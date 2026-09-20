@@ -12,7 +12,7 @@
         Title="{Binding Text[app.title], Source={x:Static loc:Strings.Instance}}"
         Icon="/Assets/tray.png"
         Width="1024" Height="660"
-        MinWidth="900" MinHeight="580"
+        MinWidth="980" MinHeight="640"
         WindowStartupLocation="CenterScreen">
 
   <!--

@@ -224,11 +224,20 @@
       </ScrollViewer>
 
       <!-- ==== Middle column: diagram, stick dots, device summary ==== -->
-      <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="*,Auto,Auto,Auto" Margin="4,2,4,0">
+      <!-- Clipped because nothing else in this column can be: the preview is a plain Control and
+           draws whatever geometry it is given, and the group boxes in the row above are declared
+           earlier, so an overflowing diagram lands on top of their captions rather than behind
+           them. -->
+      <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="*,Auto,Auto,Auto" Margin="4,2,4,0"
+            ClipToBounds="True">
 
+        <!-- The floor is low on purpose. A minimum the row cannot honour does not shrink the
+             layout, it just makes the control overflow its cell: Avalonia clamps the arranged
+             size up to MinHeight whatever the grid offered. The artwork is vector and stays
+             legible when it is small, so it is allowed to shrink instead. -->
         <ctl:ControllerPreview Grid.Row="0"
                                x:Name="PART_ControllerPreview"
-                               MinHeight="200"
+                               MinHeight="120"
                                BodyBrush="{DynamicResource ControllerBodyBrush}"
                                DetailBrush="{DynamicResource ControllerDetailBrush}"
                                HighlightBrush="#FF8C1A"
