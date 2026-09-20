@@ -14,7 +14,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Company>UniPad</Company>
     <Product>UniPad</Product>
     <Copyright>Copyright (c) 2026 UniPad contributors</Copyright>
