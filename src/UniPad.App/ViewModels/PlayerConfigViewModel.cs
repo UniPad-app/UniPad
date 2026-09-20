@@ -322,9 +322,35 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
                 Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
             }
 
-            foreach (var device in _state.Input.Devices.OrderBy(d => d.Name).ThenBy(d => d.Id.Port))
+            // The ordinal in DisplayName counts within one GUID, so two sticks on the same adapter can
+            // both be the first of their own kind and read identically in the picker. Numbering is done
+            // here instead, where the whole list is visible: a name that occurs once is shown bare, and
+            // one that repeats is numbered in a deterministic order so the label stays attached to the
+            // same stick for as long as it is plugged in.
+            var connected = _state.Input.Devices
+                .OrderBy(d => d.Name, StringComparer.CurrentCulture)
+                .ThenBy(d => d.Id.Port)
+                .ThenBy(d => d.Id.Guid, StringComparer.Ordinal)
+                .ToList();
+
+            var occurrences = connected
+                .GroupBy(d => d.Name, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            foreach (var device in connected)
             {
-                Devices.Add(new DeviceOption(device.Id, device.DisplayName));
+                var label = device.Name;
+
+                if (occurrences[device.Name] > 1)
+                {
+                    var ordinal = seen.TryGetValue(device.Name, out var lastOrdinal) ? lastOrdinal + 1 : 1;
+                    seen[device.Name] = ordinal;
+                    label = $"{device.Name} #{ordinal.ToString(CultureInfo.InvariantCulture)}";
+                }
+
+                Devices.Add(new DeviceOption(device.Id, label));
             }
 
             // Keep a saved-but-absent device visible so the user understands why nothing works.

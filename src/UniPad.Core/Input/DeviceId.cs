@@ -15,6 +15,25 @@ namespace UniPad.Core.Input;
 /// <param name="Port">Zero-based ordinal among devices sharing the same GUID.</param>
 public sealed record DeviceId(string Guid, int Port)
 {
+    /// <summary>
+    /// The GUID as it takes part in identity, with the backend signature removed.
+    /// </summary>
+    public string Guid { get; init; } = NormaliseGuid(Guid);
+
+    /// <summary>
+    /// Reduces an SDL GUID to the part that actually identifies the hardware: bus, vendor, product
+    /// and version. The two fields removed are a CRC16 of the device name and the signature of the
+    /// backend that opened it, and neither is stable. With raw input and DirectInput both enabled, a
+    /// twin adapter hot-plugged after start has its two halves opened by different backends, which
+    /// report slightly different names, so the same stick arrives under a different GUID than the one
+    /// the startup scan produces - and the binding saved against it no longer matches on next launch.
+    /// </summary>
+    /// <param name="guid">Raw GUID text, or a synthetic sentinel such as <c>keyboard</c>.</param>
+    public static string NormaliseGuid(string guid) =>
+        guid.Length == 32
+            ? string.Concat("0000", guid.AsSpan(8, 20), "0000")
+            : guid;
+
     /// <summary>Sentinel used by bindings that reference the keyboard rather than a joystick.</summary>
     public static readonly DeviceId Keyboard = new("keyboard", 0);
 

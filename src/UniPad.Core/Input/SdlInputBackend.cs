@@ -249,7 +249,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
 
         var sdlId = (SDL_JoystickID)instanceId;
-        var guidText = GetGuidString(sdlId);
+        // Normalised here rather than inside DeviceId, because everything downstream keys off this
+        // string: AllocatePort counts devices sharing a GUID, and comparing a raw SDL string against
+        // the normalised ones already stored never matches, so every device would take port zero.
+        var guidText = DeviceId.NormaliseGuid(GetGuidString(sdlId));
         var name = SDL3.SDL_GetJoystickNameForID(sdlId) ?? "Unknown Device";
 
         var joystick = SDL3.SDL_OpenJoystick(sdlId);
