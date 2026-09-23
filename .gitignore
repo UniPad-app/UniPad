@@ -4,7 +4,7 @@
 build/out/
 publish/
 artifacts/
-docs/
+docs/items/
 
 # ---------- IDE / editor ----------
 .vs/
