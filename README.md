@@ -11,6 +11,9 @@ Make *any* controller work with *any* game.
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg)](#)
 [![Download](https://img.shields.io/badge/download-latest%20release-success.svg)](../../releases/latest)
 
+<img src="docs/images/unipad.jpg" width="820" alt="UniPad main window — Player 1 configuration">
+<img src="docs/images/unipad-main.png" width="820" alt="UniPad main window — Player 1 configuration">
+
 </div>
 
 ---
@@ -20,6 +23,18 @@ racing wheels, PS1/PS2/N64/SNES USB adapters, no-name clones — to Windows as a
 **Xbox 360 (XInput)** or **DualShock 4** controller.
 
 If a game only speaks XInput, UniPad makes your hardware speak XInput.
+
+## Contents
+
+- [Quick start](#quick-start-for-regular-users)
+- [Do I need to install anything else?](#do-i-need-to-install-anything-else)
+- [Features](#features)
+- [Usage guide](#usage-guide)
+- [Building from source](#building-from-source)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License and credits](#license)
 
 ## Quick start (for regular users)
 
@@ -31,6 +46,12 @@ If a game only speaks XInput, UniPad makes your hardware speak XInput.
    Windows prompt. UniPad downloads and installs it for you.
 4. Open a **Player** tab → tick **Connect Controller** → pick your device → click **Auto Map**.
 5. Click **Apply**. Verify at [gamepad-tester.com](https://gamepad-tester.com) or by running `joy.cpl`.
+
+<div align="center">
+  <img src="docs/images/auto-map.gif" width="760" alt="Auto Map filling in every binding with one click">
+  <br>
+  <em>One click on <strong>Auto Map</strong> and an unknown pad is fully bound.</em>
+</div>
 
 ### Do I need to install anything else?
 
@@ -82,19 +103,32 @@ If a game only speaks XInput, UniPad makes your hardware speak XInput.
 - **English and Persian (فارسی)** with full right-to-left layout
 - 1000 Hz polling with a zero-allocation hot path
 
-## Screenshots
-
-<!-- Add screenshots here after your first run:
-     1. Take a screenshot of the Player 1 tab and the Advanced tab
-     2. Save them as docs/screenshot-player.png and docs/screenshot-advanced.png
-     3. Uncomment the lines below
-![Player configuration](docs/screenshot-player.png)
-![Advanced settings](docs/screenshot-advanced.png)
--->
-
-*Screenshots coming soon.*
+<div align="center">
+   <img src="docs/images/unipad-light-theme.png" width="820" alt="UniPad main window — Player 1 configuration">
+</div>
 
 ## Usage guide
+
+### The controls at a glance
+
+Everything for one player lives on a single tab, so nothing is hidden behind wizards or dialogs.
+The window title bar, the live controller preview in the middle and the stick visualisers at the
+bottom all update in real time while you press buttons, which means you can confirm a mapping
+without ever launching a game.
+
+| Control | What it does |
+|---|---|
+| **Auto Map** | Binds the selected device automatically — SDL database first, heuristics as fallback. |
+| **Clear All** | Removes every binding for this player only. |
+| **Defaults** | Restores dead zone, range and option defaults without touching bindings. |
+| **Identify** | Rumbles the selected physical pad so you know which one it is. |
+| **Auto-Detect All** | Runs Auto Map for every connected player tab at once. |
+| **Vibration** | Enables the rumble return path from the game to your physical pad. |
+| **Emulate Left Stick with D-Pad** | Drives the left stick from the D-Pad, for pads with no sticks. |
+| **Apply** | Creates/updates the virtual controllers. Nothing reaches games until you press this. |
+
+The status bar tells you where a mapping came from (for example *Mapped from the SDL controller
+database*) plus how many devices are visible and how many of the 8 player slots are in use.
 
 ### Mapping an unknown controller
 
@@ -102,11 +136,22 @@ If a game only speaks XInput, UniPad makes your hardware speak XInput.
 2. Choose your device in **Input Device**. If it is not listed, click **Refresh**.
 3. Click **Auto Map** and test. For a known pad this is usually all you need.
 4. For anything wrong: click the bind button, then press the physical input within 5 seconds.
-5. **Right-click** any bind for extra options:
-   - **Clear** — remove the binding
-   - **Invert axis** — for reversed sticks and pedals
-   - **Toggle** — latch on/off instead of hold
-   - **Set threshold** — how far an axis must travel to count as a press
+
+### Fixing a single binding — right-click
+
+You never have to redo a whole mapping because one button landed in the wrong place.
+**Right-click any bind button** for its own menu:
+
+<div align="center">
+  <img src="docs/images/bind-context-menu.png" width="820" alt="Right-click menu on a bind button showing Clear, Invert axis, Toggle and Set threshold">
+</div>
+
+| Menu item | Use it when |
+|---|---|
+| **Clear** | You want to unbind just this one input and leave everything else alone. |
+| **Invert axis** | A stick, pedal or trigger reads backwards. Common on racing wheels and cheap adapters. |
+| **Toggle** | You want the input to latch on/off instead of being held — handy for sprint or handbrake. |
+| **Set threshold…** | An axis is being used as a button and you need to choose how far it must travel to count as a press. |
 
 ### Controllers with no analogue sticks
 
@@ -128,6 +173,16 @@ Add players on tabs 1–8. Set each one's **Input Device** and **Output Mode**.
 Windows sees both your physical controller *and* the virtual one, so some games register every
 input twice. Fix: install **HidHide** (Advanced tab → Install) and tick
 **Hide physical controllers**.
+
+### When a pad reports nonsense
+
+Unknown and clone hardware sometimes reports button indices that have nothing to do with the
+labels printed on the plastic. The **Advanced** tab has a raw monitor that shows every axis,
+button and hat live, so you can press a button, read its real index, and bind it by hand.
+
+<div align="center">
+  <img src="docs/images/advanced-monitor.png" width="820" alt="Advanced tab with the raw device monitor showing live axis and button values">
+</div>
 
 ## Building from source
 
@@ -206,46 +261,45 @@ UniPad/
 | Nothing happens in-game | Check **Output enabled** on the Advanced tab, and that the profile was **Applied**. |
 | Game with anti-cheat rejects it | Kernel-mode anti-cheat may block virtual pads. UniPad does not attempt to bypass it. |
 
-Logs live in `UniPad_Data\logs\` next to the executable (or `%APPDATA%\UniPad\logs\`).
-Attach the newest log when reporting a bug.
+Logs live in the `logs` folder next to `UniPad.exe` (or under `%APPDATA%\UniPad\logs` when the
+executable sits on read-only media). Attach the newest log file to any bug report.
+
+### Anti-cheat and privacy
+
+UniPad creates a virtual gamepad through the public ViGEmBus driver and does nothing else to your
+system. It does not inject into games, hook processes, or hide itself. Some competitive titles with
+kernel-mode anti-cheat block virtual input devices on principle, and that is their decision to
+make — UniPad will not try to work around it. Nothing is sent anywhere: there is no telemetry, no
+account, and no network access apart from downloading the ViGEmBus/HidHide installers when you
+explicitly ask it to.
 
 ## Contributing
 
-Contributions are welcome. Useful things to know:
+Issues and pull requests are welcome.
 
-- The build must stay at **0 errors and 0 warnings**.
-- `UniPad.Core` must not take a UI dependency — it is deliberately testable in isolation.
-- Nothing may allocate on the polling hot path.
-- Please include your controller's name, VID/PID and the raw-monitor output when reporting a
-  mapping bug; a device nobody owns cannot be fixed by guesswork.
+**Reporting a bug.** The single most useful thing you can include is the exact controller name as
+shown in the **Input Device** dropdown, plus the newest log file. A screenshot of the Advanced
+tab's raw monitor while the problem is happening usually settles the question immediately.
 
-## Limitations
+**Adding controller support.** If Auto Map gets a pad wrong, the fix often belongs upstream in
+[SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) rather than in UniPad. Open
+an issue either way and we can work out which.
 
-- Windows only (ViGEmBus is a Windows kernel driver).
-- Only 4 XInput slots exist; players 5–8 use DualShock 4 output.
-- Games with kernel-mode anti-cheat may reject virtual controllers.
-- Trimming (`PublishTrimmed`) is intentionally **off** — SDL3 and ViGEm reach native code through
-  P/Invoke and the trimmer cannot see those paths.
+**Code.** Keep `UniPad.Core` free of UI dependencies, and keep the polling hot path
+allocation-free. New UI strings must be added to both English and Persian in `Strings.cs`.
 
-## Not an emulator, not a cheat tool
+## License
 
-UniPad contains no game code and makes no attempt to bypass any protection. The interface takes
-visual inspiration from familiar controller configuration dialogs, but every asset, style and line
-of code — including the tray icon and the controller diagram, which are drawn procedurally — is
-original work.
-
-## Licence
-
-[MIT](LICENSE) — free to use, modify and redistribute, including commercially.
+MIT — see [LICENSE](LICENSE).
 
 ### Third-party components
 
-| Component | Licence |
+| Project | License |
 |---|---|
-| [SDL3](https://libsdl.org) | zlib |
+| [SDL3](https://libsdl.org/) | zlib |
 | [ViGEmBus / ViGEm.NET](https://github.com/nefarius/ViGEmBus) — Nefarius Software Solutions | MIT / BSD-3 |
 | [HidHide](https://github.com/nefarius/HidHide) — Nefarius Software Solutions | MIT |
-| [Avalonia UI](https://avaloniaui.net) | MIT |
-| [Serilog](https://serilog.net) | Apache-2.0 |
+| [Avalonia UI](https://avaloniaui.net/) | MIT |
+| [Serilog](https://serilog.net/) | Apache-2.0 |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
 | [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) | Zlib |
