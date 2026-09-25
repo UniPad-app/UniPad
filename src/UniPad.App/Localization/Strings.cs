@@ -160,6 +160,15 @@ public sealed class Strings : INotifyPropertyChanged
         ["player.any"] = "Any",
         ["player.notConnected"] = "Not connected",
         ["player.keyboardMouse"] = "Keyboard & Mouse",
+        
+        ["profile.none"] = "None",
+        ["profile.newTitle"] = "New Profile",
+        ["profile.prompt"] = "Enter a profile name:",
+        ["profile.hint"] = "The name can't contain any of the following characters:",
+        ["profile.errExists"] = "A profile with this name already exists.",
+        ["profile.errChars"] = "The name contains a character that isn't allowed.",
+        ["profile.errReserved"] = "This name is reserved by Windows. Please choose another one.",
+        ["profile.errTooLong"] = "The name is too long (64 characters at most).",
 
         ["group.leftStick"] = "Left Stick",
         ["group.rightStick"] = "Right Stick",
@@ -337,6 +346,11 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.driverInstallerMissing"] = "Installer file not found:",
         ["msg.driverTimedOut"] = "The installer did not finish in time:",
         ["msg.driverInstallFailed"] = "Driver installation failed:",
+        ["msg.playerProfileSaved"] = "Profile saved:",
+        ["msg.playerProfileLoaded"] = "Profile applied to this player:",
+        ["msg.playerProfileSaveFailed"] = "Could not save profile:",
+        ["msg.playerProfileLoadFailed"] = "Could not read profile:",
+        ["msg.playerProfileDeleteFailed"] = "Could not delete profile:",
 
     };
 
@@ -360,6 +374,15 @@ public sealed class Strings : INotifyPropertyChanged
         ["player.any"] = "هر کدام",
         ["player.notConnected"] = "متصل نیست",
         ["player.keyboardMouse"] = "کیبورد و ماوس",
+        
+        ["profile.none"] = "بدون پروفایل",
+        ["profile.newTitle"] = "پروفایل جدید",
+        ["profile.prompt"] = "نام پروفایل را وارد کنید:",
+        ["profile.hint"] = "نام نمی‌تواند هیچ‌کدام از این نویسه‌ها را داشته باشد:",
+        ["profile.errExists"] = "پروفایلی با این نام از قبل وجود دارد.",
+        ["profile.errChars"] = "نام شامل نویسه‌ای است که مجاز نیست.",
+        ["profile.errReserved"] = "این نام توسط ویندوز رزرو شده است. لطفاً نام دیگری انتخاب کنید.",
+        ["profile.errTooLong"] = "نام بیش از حد طولانی است (حداکثر 64 نویسه).",
 
         ["group.leftStick"] = "آنالوگ چپ",
         ["group.rightStick"] = "آنالوگ راست",
@@ -536,6 +559,11 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.driverInstallerMissing"] = "فایل نصب‌کننده پیدا نشد:",
         ["msg.driverTimedOut"] = "نصب‌کننده در زمان مقرر تمام نشد:",
         ["msg.driverInstallFailed"] = "نصب درایور ناموفق بود:",
+        ["msg.playerProfileSaved"] = "پروفایل ذخیره شد:",
+        ["msg.playerProfileLoaded"] = "پروفایل روی این بازیکن اعمال شد:",
+        ["msg.playerProfileSaveFailed"] = "ذخیرهٔ پروفایل ممکن نشد:",
+        ["msg.playerProfileLoadFailed"] = "خواندن پروفایل ممکن نشد:",
+        ["msg.playerProfileDeleteFailed"] = "حذف پروفایل ممکن نشد:",
 
     };
 }

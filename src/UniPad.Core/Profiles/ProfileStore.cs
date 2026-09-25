@@ -78,6 +78,12 @@ public sealed class ProfileStore
         {
             foreach (var file in Directory.EnumerateFiles(PortablePaths.ProfilesDirectory, "*.json"))
             {
+                // Single-player profiles share this folder but are a different document type.
+                if (file.EndsWith(PlayerProfileStore.FileSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var name = Path.GetFileNameWithoutExtension(file);
                 if (!string.IsNullOrWhiteSpace(name))
                 {
@@ -243,6 +249,7 @@ public sealed class ProfileStore
                 : VirtualPadType.Xbox360;
             mapping.Device = DeviceId.TryParse(playerDto.Device);
             mapping.DeviceName = playerDto.DeviceName;
+            mapping.ProfileName = playerDto.ProfileName;
             mapping.EmulateStickWithDpad = playerDto.EmulateStickWithDpad;
 
             mapping.LeftStick = new StickSettings
@@ -302,6 +309,7 @@ public sealed class ProfileStore
                 OutputType = mapping.OutputType.ToString(),
                 Device = mapping.Device?.ToString(),
                 DeviceName = mapping.DeviceName,
+                ProfileName = mapping.ProfileName,
                 EmulateStickWithDpad = mapping.EmulateStickWithDpad,
                 Vibration = new VibrationDto
                 {
@@ -351,7 +359,7 @@ public sealed class ProfileStore
     }
 
     /// <summary>Writes via a temp file and replace so readers never observe a partial document.</summary>
-    private static void WriteAtomic(string path, string contents)
+    internal static void WriteAtomic(string path, string contents)
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory))

@@ -63,6 +63,7 @@ public sealed class AppState : IDisposable
 
         Output = new OutputManager(Input);
         HidHide = new HidHideService();
+        PlayerProfiles = new PlayerProfileLibrary();
 
         _players = Store.LoadProfile(Config.ActiveProfile);
         ActiveProfileName = Config.ActiveProfile;
@@ -111,6 +112,9 @@ public sealed class AppState : IDisposable
 
     /// <summary>HidHide cloaking integration.</summary>
     public HidHideService HidHide { get; }
+    
+    /// <summary>Shared list of single-player profiles.</summary>
+    public PlayerProfileLibrary PlayerProfiles { get; }
 
     /// <summary>Name of the profile currently loaded.</summary>
     public string ActiveProfileName { get; private set; }

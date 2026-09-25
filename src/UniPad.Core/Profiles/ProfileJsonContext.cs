@@ -12,6 +12,7 @@ namespace UniPad.Core.Profiles;
     PropertyNameCaseInsensitive = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
 [JsonSerializable(typeof(ProfileDto))]
+[JsonSerializable(typeof(PlayerProfileDto))]
 [JsonSerializable(typeof(AppConfigDto))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

@@ -37,13 +37,13 @@
   -->
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
 
-    <!-- ============ Header: connect toggle, device, output type ============ -->
+    <!-- ============ Header: connect toggle, device, profile, output type ============ -->
     <!--
       Mirrored with the language: the connect toggle moves to the right edge, the output type to
       the left. Only the direction is bound, so the columns keep their own order and nothing has to
       be rewritten per language.
     -->
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6"
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,*,Auto" Margin="0,0,0,6"
           FlowDirection="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}">
       <CheckBox Grid.Column="0"
                 IsChecked="{Binding IsEnabled}"
@@ -72,7 +72,32 @@
         </Grid>
       </HeaderedContentControl>
 
+      <!-- Per-player profiles. The list is shared by every player tab. -->
       <HeaderedContentControl Grid.Column="2"
+                              Classes="groupBox"
+                              Header="{Binding Text[player.profile], Source={x:Static loc:Strings.Instance}}">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+          <ComboBox Grid.Column="0"
+                    ItemsSource="{Binding ProfileOptions}"
+                    SelectedItem="{Binding SelectedProfileOption}"
+                    HorizontalAlignment="Stretch"
+                    MinWidth="90" />
+          <Button Grid.Column="1"
+                  Command="{Binding SaveProfileCommand}"
+                  Content="{Binding Text[action.save], Source={x:Static loc:Strings.Instance}}"
+                  Margin="4,0,0,0" />
+          <Button Grid.Column="2"
+                  Command="{Binding NewProfileCommand}"
+                  Content="{Binding Text[action.new], Source={x:Static loc:Strings.Instance}}"
+                  Margin="4,0,0,0" />
+          <Button Grid.Column="3"
+                  Command="{Binding DeleteProfileCommand}"
+                  Content="{Binding Text[action.delete], Source={x:Static loc:Strings.Instance}}"
+                  Margin="4,0,0,0" />
+        </Grid>
+      </HeaderedContentControl>
+
+      <HeaderedContentControl Grid.Column="3"
                               Classes="groupBox"
                               Header="{Binding Text[player.controllerType], Source={x:Static loc:Strings.Instance}}">
         <!-- Xbox360 and DualShock4 are product names, not translated text: kept left-to-right. -->

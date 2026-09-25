@@ -388,6 +388,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         foreach (var mapping in _state.Players)
         {
             mapping.RestoreDefaults();
+            mapping.ProfileName = null;
         }
 
         foreach (var player in Players)

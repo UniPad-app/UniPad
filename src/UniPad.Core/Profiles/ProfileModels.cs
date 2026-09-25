@@ -53,6 +53,14 @@ public sealed class PlayerDto
     [JsonPropertyName("deviceName")]
     public string? DeviceName { get; set; }
 
+    
+    /// <summary>
+    /// Name of the per-player profile this slot was last loaded from or saved to, or null. Old
+    /// files simply lack it, and older builds skip it when reading, so it is safe in both directions.
+    /// </summary>
+    [JsonPropertyName("profileName")]
+    public string? ProfileName { get; set; }
+
     /// <summary>Whether D-Pad input also drives the left stick.</summary>
     [JsonPropertyName("emulateStickWithDpad")]
     public bool EmulateStickWithDpad { get; set; } = true;
@@ -88,6 +96,46 @@ public sealed class ProfileDto
     /// <summary>Player slots contained in this profile.</summary>
     [JsonPropertyName("players")]
     public List<PlayerDto> Players { get; set; } = [];
+}
+
+/// <summary>A single player's settings saved under a user-chosen name.</summary>
+public sealed class PlayerProfileDto
+{
+    /// <summary>Schema version, used to drive migrations.</summary>
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; } = ProfileSchema.CurrentVersion;
+
+    /// <summary>Profile display name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Device the profile was made with, in <c>guid:port</c> form.</summary>
+    [JsonPropertyName("device")]
+    public string? Device { get; set; }
+
+    /// <summary>Friendly name of that device.</summary>
+    [JsonPropertyName("deviceName")]
+    public string? DeviceName { get; set; }
+
+    /// <summary>Whether D-Pad input also drives the left stick.</summary>
+    [JsonPropertyName("emulateStickWithDpad")]
+    public bool EmulateStickWithDpad { get; set; } = true;
+
+    /// <summary>Rumble configuration.</summary>
+    [JsonPropertyName("vibration")]
+    public VibrationDto Vibration { get; set; } = new();
+
+    /// <summary>Left stick tuning.</summary>
+    [JsonPropertyName("leftStick")]
+    public StickDto LeftStick { get; set; } = new();
+
+    /// <summary>Right stick tuning.</summary>
+    [JsonPropertyName("rightStick")]
+    public StickDto RightStick { get; set; } = new();
+
+    /// <summary>Binding table keyed by <c>PadTarget</c> name, values are parameter strings.</summary>
+    [JsonPropertyName("bindings")]
+    public Dictionary<string, string> Bindings { get; set; } = new();
 }
 
 /// <summary>Global application configuration, independent of any profile.</summary>

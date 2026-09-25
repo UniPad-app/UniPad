@@ -103,6 +103,9 @@ public sealed class PlayerMapping
     /// <summary>Last known friendly name of the device, kept so the UI can show it while unplugged.</summary>
     public string? DeviceName { get; set; }
 
+    /// <summary>Name of the per-player profile this slot was last loaded from or saved to, or null.</summary>
+    public string? ProfileName { get; set; }
+
     /// <summary>Whether D-Pad bindings also drive the left stick by default.</summary>
     public const bool DefaultEmulateStickWithDpad = true;
 
@@ -183,6 +186,7 @@ public sealed class PlayerMapping
             OutputType = OutputType,
             Device = Device,
             DeviceName = DeviceName,
+            ProfileName = ProfileName,
             EmulateStickWithDpad = EmulateStickWithDpad,
             LeftStick = LeftStick.Clone(),
             RightStick = RightStick.Clone(),

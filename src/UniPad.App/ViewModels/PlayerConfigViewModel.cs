@@ -3,9 +3,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using UniPad.App.Localization;
 using UniPad.App.Services;
+using UniPad.App.Views;
 using UniPad.Core.Input;
 using UniPad.Core.Mapping;
 using UniPad.Core.Output;
+using UniPad.Core.Profiles;
 using System.Globalization;
 
 namespace UniPad.App.ViewModels;
@@ -23,6 +25,26 @@ public delegate void PadStatePreviewHandler(in PadState state);
 /// <param name="Display">Text shown in the combo box.</param>
 public sealed record DeviceOption(DeviceId? Id, string Display)
 {
+    /// <inheritdoc />
+    public override string ToString() => Display;
+}
+
+/// <summary>One entry in the profile picker.</summary>
+/// <remarks>
+/// A class, not a record, on purpose. The player tabs share one recycled view, and a ComboBox that
+/// is handed a new list tries to keep its selection by equality. With value equality, player one's
+/// "GTA" entry would equal player two's, the control would select it in the new list, and the
+/// profile would be loaded into a player who never asked for it. Reference equality makes entries
+/// from different tabs never match.
+/// </remarks>
+public sealed class ProfileOption(string? name, string display)
+{
+    /// <summary>Profile name, or null for the "None" entry.</summary>
+    public string? Name { get; } = name;
+
+    /// <summary>Text shown in the combo box.</summary>
+    public string Display { get; } = display;
+
     /// <inheritdoc />
     public override string ToString() => Display;
 }
@@ -67,6 +89,10 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
     [ObservableProperty]
     private DeviceOption? _selectedDevice;
+    
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
+    private ProfileOption? _selectedProfileOption;
 
     [ObservableProperty]
     private VirtualPadType _outputType;
@@ -138,11 +164,15 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         // Devices first: PullFromMapping resolves SelectedDevice against the Devices collection,
         // so with an empty list it would select nothing and leave the picker blank.
         RefreshDevices();
+        RefreshProfileOptions();
         PullFromMapping();
 
         // The four slider captions are built in code, so they have to be rebuilt by hand when the
         // language changes; the bindings themselves cannot see it.
         Strings.Instance.LanguageChanged += OnLanguageChanged;
+
+        // A profile created or deleted in any tab must show up in, or vanish from, this one too.
+        _state.PlayerProfiles.Changed += RefreshProfileOptions;
     }
 
     /// <summary>The underlying runtime mapping this view model edits in place.</summary>
@@ -186,10 +216,14 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         OnPropertyChanged(nameof(LeftRangeText));
         OnPropertyChanged(nameof(RightDeadzoneText));
         OnPropertyChanged(nameof(RightRangeText));
+        RefreshProfileOptions();
     }
 
     /// <summary>Available input devices plus the "none" entry.</summary>
     public ObservableCollection<DeviceOption> Devices { get; } = [];
+    
+    /// <summary>Stored player profiles plus the "None" entry.</summary>
+    public ObservableCollection<ProfileOption> ProfileOptions { get; } = [];
 
     /// <summary>Selectable output pad types.</summary>
     public VirtualPadType[] OutputTypes { get; } = [VirtualPadType.Xbox360, VirtualPadType.DualShock4];
@@ -281,6 +315,8 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
             SelectedDevice = Devices.FirstOrDefault(d => d.Id == Mapping.Device)
                              ?? Devices.FirstOrDefault();
+            
+            SelectedProfileOption = FindProfileOption(Mapping.ProfileName);
         }
         finally
         {
@@ -616,6 +652,170 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         }
     }
 
+    // ---- Per-player profiles ----
+
+    /// <summary>
+    /// Rebuilds the profile picker from the shared list and re-selects this player's profile.
+    /// Guarded for the same reason as <see cref="RefreshDevices"/>: clearing the list makes the
+    /// ComboBox push a null selection back into the view model.
+    /// </summary>
+    public void RefreshProfileOptions()
+    {
+        var previous = _suppressPropagation;
+        _suppressPropagation = true;
+
+        try
+        {
+            ProfileOptions.Clear();
+            ProfileOptions.Add(new ProfileOption(null, Strings.Get("profile.none")));
+
+            foreach (var name in _state.PlayerProfiles.Names)
+            {
+                ProfileOptions.Add(new ProfileOption(name, name));
+            }
+
+            // The file was deleted, from another tab or by hand: unlink, but keep the settings.
+            if (Mapping.ProfileName is not null && !_state.PlayerProfiles.Contains(Mapping.ProfileName))
+            {
+                Mapping.ProfileName = null;
+            }
+
+            SelectedProfileOption = FindProfileOption(Mapping.ProfileName);
+        }
+        finally
+        {
+            _suppressPropagation = previous;
+        }
+    }
+
+    private ProfileOption? FindProfileOption(string? name) =>
+        ProfileOptions.FirstOrDefault(o =>
+            o.Name is not null && string.Equals(o.Name, name, StringComparison.OrdinalIgnoreCase))
+        ?? ProfileOptions.FirstOrDefault();
+
+    partial void OnSelectedProfileOptionChanged(ProfileOption? value)
+    {
+        // Null only ever comes from the ComboBox coercing its own selection.
+        if (_suppressPropagation || value is null)
+        {
+            return;
+        }
+
+        // A recycled view can write an entry from another player's list into this one. Loading a
+        // profile is destructive, so only an entry from this player's own list is accepted.
+        if (!ProfileOptions.Any(o => ReferenceEquals(o, value)))
+        {
+            return;
+        }
+
+        if (string.Equals(value.Name, Mapping.ProfileName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (value.Name is null)
+        {
+            // "None" only unlinks; the current settings stay exactly as they are.
+            Mapping.ProfileName = null;
+            return;
+        }
+
+        LoadPlayerProfile(value.Name);
+    }
+
+    /// <summary>Loads a stored profile into this player.</summary>
+    private void LoadPlayerProfile(string name)
+    {
+        var profile = _state.PlayerProfiles.Load(name);
+        if (profile is null)
+        {
+            _state.ReportStatus("msg.playerProfileLoadFailed", name, $"Could not read profile: {name}");
+
+            // The list is stale if the file vanished; re-reading it also restores the selection.
+            _state.PlayerProfiles.Reload();
+            return;
+        }
+
+        // The binding dictionary is rewritten, so the slot is held out of the poll loop.
+        EditMapping(() =>
+        {
+            PlayerProfileStore.ApplyTo(profile, Mapping);
+            Mapping.ProfileName = name;
+        });
+
+        // Devices before values, as elsewhere: the profile may have assigned a device.
+        RefreshDevices();
+        PullFromMapping();
+
+        _state.ReportStatus("msg.playerProfileLoaded", name, $"Profile applied: {name}");
+        RequestApplyOutput();
+    }
+
+    /// <summary>Saves this player's settings under a name and links the player to it.</summary>
+    private void SaveCurrentAs(string name)
+    {
+        var previous = Mapping.ProfileName;
+
+        // Set first, so the refresh that follows a successful save already selects it.
+        Mapping.ProfileName = name;
+
+        if (!_state.PlayerProfiles.Save(name, Mapping))
+        {
+            Mapping.ProfileName = previous;
+            RefreshProfileOptions();
+            _state.ReportStatus("msg.playerProfileSaveFailed", name, $"Could not save profile: {name}");
+            return;
+        }
+
+        _state.ReportStatus("msg.playerProfileSaved", name, $"Profile saved: {name}");
+    }
+
+    /// <summary>Asks for a name and saves this player's settings as a new profile.</summary>
+    [RelayCommand]
+    private async Task NewProfileAsync()
+    {
+        var name = await ProfileNameDialog.PromptAsync(_state.PlayerProfiles.Contains);
+        if (name is not null)
+        {
+            SaveCurrentAs(name);
+        }
+    }
+
+    /// <summary>Overwrites the selected profile, or behaves like New when none is selected.</summary>
+    [RelayCommand]
+    private async Task SaveProfileAsync()
+    {
+        var name = SelectedProfileOption?.Name;
+        if (name is null)
+        {
+            await NewProfileAsync();
+            return;
+        }
+
+        SaveCurrentAs(name);
+    }
+
+    /// <summary>Deletes the selected profile. Players linked to it keep their current settings.</summary>
+    [RelayCommand(CanExecute = nameof(CanDeleteProfile))]
+    private void DeleteProfile()
+    {
+        var name = SelectedProfileOption?.Name;
+        if (name is null)
+        {
+            return;
+        }
+
+        if (!_state.PlayerProfiles.Delete(name))
+        {
+            _state.ReportStatus("msg.playerProfileDeleteFailed", name, $"Could not delete profile: {name}");
+            return;
+        }
+
+        _state.ReportStatus("msg.profileDeleted", name, $"Profile deleted: {name}");
+    }
+
+    private bool CanDeleteProfile() => SelectedProfileOption?.Name is not null;
+
     /// <summary>Runs automatic mapping against the selected device.</summary>
     /// <remarks>
     /// The generated command is still called AutoMapCommand: the source generator drops the Async
@@ -684,6 +884,9 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         {
             Mapping.ClearBindings();
             Mapping.RestoreDefaults();
+
+            // The player no longer matches its profile, so the picker should not claim it does.
+            Mapping.ProfileName = null;
         });
 
         // Pulls rather than only refreshing the binds: the tuning values changed too, and they are

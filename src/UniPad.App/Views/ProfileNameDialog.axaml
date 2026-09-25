@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="UniPad.App.Views.ProfileNameDialog"
+        Icon="/Assets/tray.png"
+        Width="420"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!-- Texts are assigned in code-behind, so this file needs no bindings and no data type. -->
+  <StackPanel Margin="16" Spacing="8">
+    <TextBlock x:Name="PromptText" />
+    <TextBox x:Name="NameBox" MaxLength="64" />
+    <TextBlock x:Name="HintText" Classes="caption" TextWrapping="Wrap" />
+    <TextBlock x:Name="ErrorText" TextWrapping="Wrap" IsVisible="False"
+               Foreground="{DynamicResource DangerBrush}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="OkButton" Classes="accent" MinWidth="80" IsDefault="True" IsEnabled="False" />
+      <Button x:Name="CancelButton" MinWidth="80" IsCancel="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>
