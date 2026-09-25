@@ -443,14 +443,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            // The whole poll loop is detached for the duration, because any slot may be rewritten.
-            await Task.Run(() =>
-            {
-                using (_state.Output.BeginMappingEdit(-1))
-                {
-                    _state.ApplyOutput();
-                }
-            });
+            // No mapping edit scope here: ApplyOutput never rewrites a binding dictionary, it only
+            // swaps whole mapping references under the output manager's lock, which the poll loop
+            // already reads safely. Detaching every slot would also silence all players for the
+            // several seconds the staggered connect can take.
+            await Task.Run(() => _state.ApplyOutput());
 
             // One message for both outcomes. Whether the pads had to be rebuilt is an internal
             // detail: editing a binding alone leaves the signature unchanged and touches no pad,

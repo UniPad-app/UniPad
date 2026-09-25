@@ -208,8 +208,15 @@ public sealed partial class AdvancedViewModel : ViewModelBase
 
         if (result.Succeeded)
         {
-            _state.Output.TryInitialiseDriver();
-            _state.ApplyMappings();
+            // ApplyMappings staggers pad connections by 300 ms each and is documented as never
+            // running on the UI thread; with several players enabled the window would freeze.
+            await Task.Run(() =>
+            {
+                _state.Output.TryInitialiseDriver();
+                _state.ApplyMappings();
+            });
+
+            // Back on the UI thread (the await above captures the context).
             RefreshDriverStatus();
         }
     }

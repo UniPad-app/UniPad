@@ -397,15 +397,31 @@ public static unsafe class AutoMapper
             count += 4;
         }
 
-        // ---- Buttons in ascending order ----
-        var buttonOrder = new[]
-        {
-            PadTarget.A, PadTarget.B, PadTarget.X, PadTarget.Y,
-            PadTarget.LeftBumper, PadTarget.RightBumper,
-            PadTarget.Back, PadTarget.Start,
-            PadTarget.LStickPress, PadTarget.RStickPress,
-            PadTarget.Guide,
-        };
+        // ---- Buttons and triggers ----
+        // Pads without analogue triggers but with ten or more buttons (typical PS1/PS2 adapters)
+        // report L2/R2 as plain buttons 6 and 7, and everything after them shifts by two. The
+        // layout is chosen up front rather than patched afterwards: patching used to leave two
+        // targets on one physical button (Back/Start and the triggers on 6/7 for 8-9 button pads,
+        // Back/Start and the stick clicks on 8/9 for larger ones).
+        var digitalTriggers = device.AxisCount < 6 && device.ButtonCount >= 10;
+
+        var buttonOrder = digitalTriggers
+            ? new[]
+            {
+                PadTarget.A, PadTarget.B, PadTarget.X, PadTarget.Y,
+                PadTarget.LeftBumper, PadTarget.RightBumper,
+                PadTarget.LeftTrigger, PadTarget.RightTrigger,
+                PadTarget.Back, PadTarget.Start,
+                PadTarget.LStickPress, PadTarget.RStickPress,
+            }
+            : new[]
+            {
+                PadTarget.A, PadTarget.B, PadTarget.X, PadTarget.Y,
+                PadTarget.LeftBumper, PadTarget.RightBumper,
+                PadTarget.Back, PadTarget.Start,
+                PadTarget.LStickPress, PadTarget.RStickPress,
+                PadTarget.Guide,
+            };
 
         for (var i = 0; i < buttonOrder.Length && i < device.ButtonCount; i++)
         {
@@ -413,27 +429,11 @@ public static unsafe class AutoMapper
             count++;
         }
 
-        // ---- Triggers ----
+        // Analogue triggers on axes 2 and 5 when the pad has enough axes for them.
         if (device.AxisCount >= 6)
         {
             mapping.SetBinding(PadTarget.LeftTrigger, InputBinding.ForAxis(id, 2, AxisDirection.Positive));
             mapping.SetBinding(PadTarget.RightTrigger, InputBinding.ForAxis(id, 5, AxisDirection.Positive));
-            count += 2;
-        }
-        else if (device.ButtonCount >= 8)
-        {
-            // Digital shoulder buttons doubling as triggers - typical for PS1/PS2 adapters
-            // where L2/R2 are plain switches.
-            mapping.SetBinding(PadTarget.LeftTrigger, InputBinding.ForButton(id, 6));
-            mapping.SetBinding(PadTarget.RightTrigger, InputBinding.ForButton(id, 7));
-
-            // Those two indices were already claimed by Back/Start above, so move those along.
-            if (device.ButtonCount >= 10)
-            {
-                mapping.SetBinding(PadTarget.Back, InputBinding.ForButton(id, 8));
-                mapping.SetBinding(PadTarget.Start, InputBinding.ForButton(id, 9));
-            }
-
             count += 2;
         }
 

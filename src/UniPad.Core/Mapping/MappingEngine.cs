@@ -183,8 +183,9 @@ public sealed class MappingEngine
     /// </summary>
     private float ReadAnalogMagnitude(PlayerMapping mapping, PadTarget target)
     {
-        var binding = mapping.GetBinding(target);
-        if (!binding.IsBound)
+        // Read the dictionary directly: GetBinding allocates a fresh placeholder for every unbound
+        // target, which at 1000 Hz is thousands of garbage objects per second.
+        if (!mapping.Bindings.TryGetValue(target, out var binding) || !binding.IsBound)
         {
             return 0f;
         }
@@ -203,7 +204,7 @@ public sealed class MappingEngine
                 return ResolveToggle(target, binding, snapshot.GetButton(binding.Index)) ? 1f : 0f;
 
             case BindingSourceType.Hat:
-                return (snapshot.GetHat(binding.Index) & binding.HatMask) != 0 ? 1f : 0f;
+                return ResolveToggle(target, binding, (snapshot.GetHat(binding.Index) & binding.HatMask) != 0) ? 1f : 0f;
 
             case BindingSourceType.Axis:
             {
@@ -239,8 +240,7 @@ public sealed class MappingEngine
     /// </summary>
     private bool ReadDigital(PlayerMapping mapping, PadTarget target)
     {
-        var binding = mapping.GetBinding(target);
-        if (!binding.IsBound)
+        if (!mapping.Bindings.TryGetValue(target, out var binding) || !binding.IsBound)
         {
             return false;
         }
@@ -301,8 +301,7 @@ public sealed class MappingEngine
     /// </summary>
     private byte ReadTrigger(PlayerMapping mapping, PadTarget target)
     {
-        var binding = mapping.GetBinding(target);
-        if (!binding.IsBound)
+        if (!mapping.Bindings.TryGetValue(target, out var binding) || !binding.IsBound)
         {
             return 0;
         }
@@ -321,7 +320,7 @@ public sealed class MappingEngine
                 return ResolveToggle(target, binding, snapshot.GetButton(binding.Index)) ? byte.MaxValue : (byte)0;
 
             case BindingSourceType.Hat:
-                return (snapshot.GetHat(binding.Index) & binding.HatMask) != 0 ? byte.MaxValue : (byte)0;
+                return ResolveToggle(target, binding, (snapshot.GetHat(binding.Index) & binding.HatMask) != 0) ? byte.MaxValue : (byte)0;
 
             case BindingSourceType.Axis:
             {
