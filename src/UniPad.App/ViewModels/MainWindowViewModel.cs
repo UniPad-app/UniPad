@@ -64,9 +64,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _state = state;
         _capture = new BindCaptureService(state.Input, state.KeyboardMouse);
 
+        PlayerSlots = state.Players.Select(m => new PlayerSlotIndicator(m.Index + 1)).ToArray();
+
         foreach (var mapping in state.Players)
         {
-            Players.Add(new PlayerConfigViewModel(state, mapping, _capture));
+            Players.Add(new PlayerConfigViewModel(state, mapping, _capture) { PlayerSlots = PlayerSlots });
         }
 
         Advanced = new AdvancedViewModel(state);
@@ -96,10 +98,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         RefreshBanners();
         UpdateConnectedSummary();
+        UpdateCurrentSlot();
     }
 
     /// <summary>The eight player tabs.</summary>
     public ObservableCollection<PlayerConfigViewModel> Players { get; } = [];
+    
+    /// <summary>The eight squares of the player strip, in the same order as <see cref="Players"/>.</summary>
+    public PlayerSlotIndicator[] PlayerSlots { get; }
 
     /// <summary>Advanced settings tab.</summary>
     public AdvancedViewModel Advanced { get; }
@@ -286,6 +292,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             "  |  " +
             $"{Strings.Get("status.controllers")}: " +
             Strings.Isolate($"{active}/{OutputManager.MaxPlayers}");
+            
+        // The player strip reads the same condition as the count above, so the number of filled
+        // squares always matches "Controllers: n/8". The generated setters only notify on change.
+        for (var i = 0; i < Players.Count && i < PlayerSlots.Length; i++)
+        {
+            var player = Players[i];
+            PlayerSlots[i].IsConnected = player.IsEnabled && _state.Output.IsPadConnected(player.Mapping.Index);
+        }
     }
 
     /// <summary>Creates a new profile from the current state and switches to it.</summary>
@@ -548,6 +562,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         if (value == 1)
         {
             Advanced.UpdateDiagnostics();
+        }
+    }
+    
+    partial void OnSelectedTabIndexChanged(int value) => UpdateCurrentSlot();
+
+    /// <summary>Highlights the number of the player whose tab is being shown.</summary>
+    private void UpdateCurrentSlot()
+    {
+        for (var i = 0; i < PlayerSlots.Length; i++)
+        {
+            PlayerSlots[i].IsCurrent = i == SelectedTabIndex;
         }
     }
 }

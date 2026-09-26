@@ -249,6 +249,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     /// <summary>Stored player profiles plus the "None" entry.</summary>
     public ObservableCollection<ProfileOption> ProfileOptions { get; } = [];
 
+    /// <summary>
+    /// The shared eight-square player strip shown under the panel. Handed in by the main window;
+    /// empty until then, so the strip simply shows nothing.
+    /// </summary>
+    public IReadOnlyList<PlayerSlotIndicator> PlayerSlots { get; init; } = [];
+
     /// <summary>Selectable output pad types.</summary>
     public VirtualPadType[] OutputTypes { get; } = [VirtualPadType.Xbox360, VirtualPadType.DualShock4];
 

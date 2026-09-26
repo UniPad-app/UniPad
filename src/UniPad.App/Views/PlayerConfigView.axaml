@@ -86,6 +86,34 @@
     <Style Selector="Button.groupClear:pressed /template/ Ellipse#PART_Circle">
       <Setter Property="Fill" Value="{DynamicResource AccentPressedBrush}" />
     </Style>
+    
+    <!-- Player strip under the panel: a square per player, filled while its pad is live, with the
+         player number beneath it. Numbers are dimmed by default and switch to the accent colour
+         for the tab being shown. They carry their own class instead of "caption", so the global
+         caption style cannot override their colour. TextDisabledBrush comes from the palette and
+         has its own value in each theme. -->
+    <Style Selector="StackPanel.playerSlot > Border">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="CornerRadius" Value="1" />
+      <Setter Property="BorderThickness" Value="1.2" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.playerSlot.connected > Border">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="StackPanel.playerSlot > TextBlock.slotNumber">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.playerSlot.current > TextBlock.slotNumber">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
@@ -472,10 +500,13 @@
 
     <!-- ============ Actions on the left, per-player options on the right ============ -->
     <!-- Mirrored with the language as well: in Persian the action buttons run from the right edge
-         and the per-player options sit on the left, matching the reading order of the captions. -->
+         and the per-player options sit on the left, matching the reading order of the captions.
+         Every group is vertically centred, so buttons, player strip and check boxes share one
+         line. -->
     <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0"
           FlowDirection="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}">
-      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                  VerticalAlignment="Center">
         <Button Classes="accent"
                 Command="{Binding AutoMapCommand}"
                 Content="{Binding Text[action.autoMap], Source={x:Static loc:Strings.Instance}}" />
@@ -487,10 +518,41 @@
                 Content="{Binding Text[action.identify], Source={x:Static loc:Strings.Instance}}" />
       </StackPanel>
 
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+      <!-- Player strip. It spans the whole row rather than sitting in the middle column: that
+           column's centre moves with the widths of the button and option groups, which differ
+           between the two languages. The body columns either side of the diagram are both 228
+           wide, so the centre of the row is exactly the centre of the controller picture. It
+           ignores the pointer, so it never covers the buttons beneath its span. -->
+      <ItemsControl Grid.Column="0" Grid.ColumnSpan="3"
+                    ItemsSource="{Binding PlayerSlots}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Margin="0,2,0,0"
+                    IsHitTestVisible="False">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:PlayerSlotIndicator">
+            <StackPanel Classes="playerSlot" Spacing="1" MinWidth="14"
+                        Classes.connected="{Binding IsConnected}"
+                        Classes.current="{Binding IsCurrent}">
+              <Border />
+              <TextBlock Classes="slotNumber" Text="{Binding Caption}" />
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12"
+                  VerticalAlignment="Center">
         <CheckBox IsChecked="{Binding VibrationEnabled}"
+                  VerticalAlignment="Center"
                   Content="{Binding Text[opt.vibration], Source={x:Static loc:Strings.Instance}}" />
         <CheckBox IsChecked="{Binding EmulateStickWithDpad}"
+                  VerticalAlignment="Center"
                   Content="{Binding Text[opt.emulateStick], Source={x:Static loc:Strings.Instance}}" />
       </StackPanel>
     </Grid>
