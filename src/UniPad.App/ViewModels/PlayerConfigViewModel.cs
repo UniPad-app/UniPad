@@ -83,6 +83,30 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     private readonly BindCaptureService _capture;
     private readonly Dictionary<PadTarget, BindButtonViewModel> _bindLookup = [];
     private bool _suppressPropagation;
+    
+    /// <summary>
+    /// Which bind buttons each group box on the player panel holds, keyed by the CommandParameter
+    /// of the box's clear button. Only bindings are listed: a stick group's dead zone and range are
+    /// deliberately left out, so clearing a group never touches the sliders.
+    /// </summary>
+    private static readonly Dictionary<string, PadTarget[]> BindGroups = new(StringComparer.Ordinal)
+    {
+        ["ShoulderL"] = [PadTarget.LeftBumper, PadTarget.LeftTrigger],
+        ["Misc"] = [PadTarget.Back, PadTarget.Guide, PadTarget.Start],
+        ["ShoulderR"] = [PadTarget.RightBumper, PadTarget.RightTrigger],
+        ["LeftStick"] =
+        [
+            PadTarget.LStickUp, PadTarget.LStickDown, PadTarget.LStickLeft, PadTarget.LStickRight,
+            PadTarget.LStickPress, PadTarget.LStickModifier,
+        ],
+        ["DPad"] = [PadTarget.DPadUp, PadTarget.DPadDown, PadTarget.DPadLeft, PadTarget.DPadRight],
+        ["FaceButtons"] = [PadTarget.A, PadTarget.B, PadTarget.X, PadTarget.Y],
+        ["RightStick"] =
+        [
+            PadTarget.RStickUp, PadTarget.RStickDown, PadTarget.RStickLeft, PadTarget.RStickRight,
+            PadTarget.RStickPress, PadTarget.RStickModifier,
+        ],
+    };
 
     [ObservableProperty]
     private bool _isEnabled;
@@ -893,6 +917,37 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         // bound to the sliders and their captions.
         PullFromMapping();
         RequestApplyOutput();
+    }
+
+    /// <summary>
+    /// Clears the bindings of one group box and nothing else: the same thing as clearing each of its
+    /// bind buttons by hand. Stick tuning, vibration, D-Pad emulation, the device and the linked
+    /// profile are all left as they are.
+    /// </summary>
+    [RelayCommand]
+    private void ClearGroup(string? group)
+    {
+        if (group is null || !BindGroups.TryGetValue(group, out var targets))
+        {
+            return;
+        }
+
+        // Removing entries resizes the dictionary the poll loop reads, so the slot is held out of
+        // the loop for the write, exactly as a single bind button's Clear does.
+        EditMapping(() =>
+        {
+            foreach (var target in targets)
+            {
+                Mapping.SetBinding(target, null);
+            }
+        });
+
+        foreach (var target in targets)
+        {
+            _bindLookup[target].Refresh();
+        }
+
+        NotifyMappingChanged();
     }
 
     /// <summary>Restores the default dead zone and range of both sticks.</summary>

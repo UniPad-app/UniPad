@@ -35,6 +35,59 @@
     columns makes the panel read as a different device. The header and the action row carry no such
     meaning - they are ordinary form rows - so they follow the language and mirror in Persian.
   -->
+
+  <!--
+    The small round clear button that sits on the top-left corner of every binding group. Scoped
+    to this view on purpose, so the application-wide button styles and the group box template stay
+    untouched. The template has no ContentPresenter, which also keeps the global
+    "Button:pointerover /template/ ContentPresenter" rules from reaching it.
+
+    Each group box is wrapped in a Panel together with its clear button. The button is declared
+    after the box so it draws on top of the frame.
+  -->
+  <UserControl.Styles>
+    <Style Selector="Button.groupClear">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <!-- Group boxes carry a 3px margin and their frame starts 8px down, so this lands the
+           circle on the frame's top-left corner. -->
+      <Setter Property="Margin" Value="5,13,0,0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <Ellipse Name="PART_Circle" />
+            <Path Name="PART_Glyph"
+                  Data="M0,0 L5,5 M5,0 L0,5"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="Button.groupClear /template/ Ellipse#PART_Circle">
+      <Setter Property="Fill" Value="{DynamicResource BorderStrongBrush}" />
+    </Style>
+    <Style Selector="Button.groupClear /template/ Path#PART_Glyph">
+      <Setter Property="Stroke" Value="{DynamicResource InputBackgroundBrush}" />
+    </Style>
+
+    <Style Selector="Button.groupClear:pointerover /template/ Ellipse#PART_Circle">
+      <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Button.groupClear:pressed /template/ Ellipse#PART_Circle">
+      <Setter Property="Fill" Value="{DynamicResource AccentPressedBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
 
     <!-- ============ Header: connect toggle, device, profile, output type ============ -->
@@ -133,117 +186,137 @@
         takes the height of the tallest one and the other two grow to match it. Their inner grids
         carry identical margins, which is what keeps the bind buttons on one line across the strip.
       -->
-      <HeaderedContentControl Grid.Row="0" Grid.Column="0" Classes="groupBox"
-                              VerticalAlignment="Stretch"
-                              Header="{Binding Text[group.shouldersL], Source={x:Static loc:Strings.Instance}}">
-        <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
-          <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
-                     Text="LB" Margin="2,0,4,0" />
-          <ContentControl Grid.Column="1" Content="{Binding BindLeftBumper}" Margin="1" />
-          <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
-                     Text="LT" Margin="6,0,4,0" />
-          <ContentControl Grid.Column="3" Content="{Binding BindLeftTrigger}" Margin="1" />
-        </Grid>
-      </HeaderedContentControl>
+      <Panel Grid.Row="0" Grid.Column="0">
+        <HeaderedContentControl Classes="groupBox"
+                                VerticalAlignment="Stretch"
+                                Header="{Binding Text[group.shouldersL], Source={x:Static loc:Strings.Instance}}">
+          <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
+                       Text="LB" Margin="2,0,4,0" />
+            <ContentControl Grid.Column="1" Content="{Binding BindLeftBumper}" Margin="1" />
+            <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
+                       Text="LT" Margin="6,0,4,0" />
+            <ContentControl Grid.Column="3" Content="{Binding BindLeftTrigger}" Margin="1" />
+          </Grid>
+        </HeaderedContentControl>
+        <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="ShoulderL"
+                ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+      </Panel>
 
-      <HeaderedContentControl Grid.Row="0" Grid.Column="1" Classes="groupBox" MinHeight="45"
-                              VerticalAlignment="Stretch"
-                              Header="{Binding Text[group.misc], Source={x:Static loc:Strings.Instance}}">
-        <!-- Label cells are content-sized here rather than fixed at 34/40/34: the Persian captions
-             are wider than the English ones, and this box shares its column scheme with no other,
-             so nothing drifts out of alignment by letting them size themselves. -->
-        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" VerticalAlignment="Center">
-          <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
-                     Text="{Binding Text[bind.back], Source={x:Static loc:Strings.Instance}}" />
-          <ContentControl Grid.Column="1" Content="{Binding BindBack}" Margin="1" />
-          <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="8,0,4,0"
-                     Text="{Binding Text[bind.guide], Source={x:Static loc:Strings.Instance}}" />
-          <ContentControl Grid.Column="3" Content="{Binding BindGuide}" Margin="1" />
-          <TextBlock Grid.Column="4" Classes="groupLabel" HorizontalAlignment="Left" Margin="8,0,4,0"
-                     Text="{Binding Text[bind.start], Source={x:Static loc:Strings.Instance}}" />
-          <ContentControl Grid.Column="5" Content="{Binding BindStart}" Margin="1" />
-        </Grid>
-      </HeaderedContentControl>
+      <Panel Grid.Row="0" Grid.Column="1">
+        <HeaderedContentControl Classes="groupBox" MinHeight="45"
+                                VerticalAlignment="Stretch"
+                                Header="{Binding Text[group.misc], Source={x:Static loc:Strings.Instance}}">
+          <!-- Label cells are content-sized here rather than fixed at 34/40/34: the Persian captions
+               are wider than the English ones, and this box shares its column scheme with no other,
+               so nothing drifts out of alignment by letting them size themselves. -->
+          <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
+                       Text="{Binding Text[bind.back], Source={x:Static loc:Strings.Instance}}" />
+            <ContentControl Grid.Column="1" Content="{Binding BindBack}" Margin="1" />
+            <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="8,0,4,0"
+                       Text="{Binding Text[bind.guide], Source={x:Static loc:Strings.Instance}}" />
+            <ContentControl Grid.Column="3" Content="{Binding BindGuide}" Margin="1" />
+            <TextBlock Grid.Column="4" Classes="groupLabel" HorizontalAlignment="Left" Margin="8,0,4,0"
+                       Text="{Binding Text[bind.start], Source={x:Static loc:Strings.Instance}}" />
+            <ContentControl Grid.Column="5" Content="{Binding BindStart}" Margin="1" />
+          </Grid>
+        </HeaderedContentControl>
+        <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="Misc"
+                ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+      </Panel>
 
-      <HeaderedContentControl Grid.Row="0" Grid.Column="2" Classes="groupBox"
-                              VerticalAlignment="Stretch"
-                              Header="{Binding Text[group.shouldersR], Source={x:Static loc:Strings.Instance}}">
-        <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
-          <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
-                     Text="RB" Margin="2,0,4,0" />
-          <ContentControl Grid.Column="1" Content="{Binding BindRightBumper}" Margin="1" />
-          <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
-                     Text="RT" Margin="6,0,4,0" />
-          <ContentControl Grid.Column="3" Content="{Binding BindRightTrigger}" Margin="1" />
-        </Grid>
-      </HeaderedContentControl>
+      <Panel Grid.Row="0" Grid.Column="2">
+        <HeaderedContentControl Classes="groupBox"
+                                VerticalAlignment="Stretch"
+                                Header="{Binding Text[group.shouldersR], Source={x:Static loc:Strings.Instance}}">
+          <Grid ColumnDefinitions="26,*,26,*" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
+                       Text="RB" Margin="2,0,4,0" />
+            <ContentControl Grid.Column="1" Content="{Binding BindRightBumper}" Margin="1" />
+            <TextBlock Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
+                       Text="RT" Margin="6,0,4,0" />
+            <ContentControl Grid.Column="3" Content="{Binding BindRightTrigger}" Margin="1" />
+          </Grid>
+        </HeaderedContentControl>
+        <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="ShoulderR"
+                ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+      </Panel>
 
       <!-- ==== Left column: left stick, then the D-Pad ==== -->
       <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
         <StackPanel Spacing="2">
 
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.leftStick], Source={x:Static loc:Strings.Instance}}">
-            <StackPanel Spacing="3">
-              <!-- Labels sit above their bind cells, but in the same two stretching columns the
-                   shoulder box uses, so nothing drifts sideways between the boxes. -->
-              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLStickUp}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindLStickDown}" Margin="1" />
+          <Panel>
+            <HeaderedContentControl Classes="groupBox"
+                                    Header="{Binding Text[group.leftStick], Source={x:Static loc:Strings.Instance}}">
+              <StackPanel Spacing="3">
+                <!-- Labels sit above their bind cells, but in the same two stretching columns the
+                     shoulder box uses, so nothing drifts sideways between the boxes. -->
+                <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                  <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindLStickUp}" Margin="1" />
+                  <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindLStickDown}" Margin="1" />
 
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindLStickLeft}" Margin="1" />
-                <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindLStickRight}" Margin="1" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindLStickLeft}" Margin="1" />
+                  <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindLStickRight}" Margin="1" />
 
-                <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindLStickPress}" Margin="1" />
-                <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindLStickModifier}" Margin="1" />
-              </Grid>
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindLStickPress}" Margin="1" />
+                  <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindLStickModifier}" Margin="1" />
+                </Grid>
 
-              <!-- Label and value come from the view model as one string: separate runs are
-                   reordered independently, which separated the per cent sign from its digits. -->
-              <StackPanel Spacing="1">
-                <TextBlock Classes="caption" HorizontalAlignment="Left"
-                           Text="{Binding LeftDeadzoneText}" />
-                <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
-                        Value="{Binding LeftDeadzone}" />
+                <!-- Label and value come from the view model as one string: separate runs are
+                     reordered independently, which separated the per cent sign from its digits. -->
+                <StackPanel Spacing="1">
+                  <TextBlock Classes="caption" HorizontalAlignment="Left"
+                             Text="{Binding LeftDeadzoneText}" />
+                  <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
+                          Value="{Binding LeftDeadzone}" />
 
-                <TextBlock Classes="caption" HorizontalAlignment="Left"
-                           Text="{Binding LeftRangeText}" />
-                <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
-                        Value="{Binding LeftRange}" />
+                  <TextBlock Classes="caption" HorizontalAlignment="Left"
+                             Text="{Binding LeftRangeText}" />
+                  <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
+                          Value="{Binding LeftRange}" />
+                </StackPanel>
               </StackPanel>
-            </StackPanel>
-          </HeaderedContentControl>
+            </HeaderedContentControl>
+            <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="LeftStick"
+                    ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+          </Panel>
 
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.dpad], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
-                         Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindDPadLeft}" Margin="1" />
-              <TextBlock Grid.Row="0" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="6,0,4,0"
-                         Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindDPadUp}" Margin="1" />
+          <Panel>
+            <HeaderedContentControl Classes="groupBox"
+                                    Header="{Binding Text[group.dpad], Source={x:Static loc:Strings.Instance}}">
+              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
+                           Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
+                <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindDPadLeft}" Margin="1" />
+                <TextBlock Grid.Row="0" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="6,0,4,0"
+                           Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
+                <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindDPadUp}" Margin="1" />
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
-                         Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindDPadDown}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="6,0,4,0"
-                         Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindDPadRight}" Margin="1" />
-            </Grid>
-          </HeaderedContentControl>
+                <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left" Margin="2,0,4,0"
+                           Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
+                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindDPadDown}" Margin="1" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left" Margin="6,0,4,0"
+                           Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
+                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindDPadRight}" Margin="1" />
+              </Grid>
+            </HeaderedContentControl>
+            <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="DPad"
+                    ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+          </Panel>
 
         </StackPanel>
       </ScrollViewer>
@@ -307,64 +380,72 @@
       <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
         <StackPanel Spacing="2">
 
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.faceButtons], Source={x:Static loc:Strings.Instance}}">
-            <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
-              <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
-                         Text="X" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindX}" Margin="1" />
-              <TextBlock Grid.Row="0" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
-                         Text="A" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindA}" Margin="1" />
+          <Panel>
+            <HeaderedContentControl Classes="groupBox"
+                                    Header="{Binding Text[group.faceButtons], Source={x:Static loc:Strings.Instance}}">
+              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
+                           Text="X" Margin="2,0,4,0" />
+                <ContentControl Grid.Row="0" Grid.Column="1" Content="{Binding BindX}" Margin="1" />
+                <TextBlock Grid.Row="0" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
+                           Text="A" Margin="6,0,4,0" />
+                <ContentControl Grid.Row="0" Grid.Column="3" Content="{Binding BindA}" Margin="1" />
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
-                         Text="Y" Margin="2,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindY}" Margin="1" />
-              <TextBlock Grid.Row="1" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
-                         Text="B" Margin="6,0,4,0" />
-              <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindB}" Margin="1" />
-            </Grid>
-          </HeaderedContentControl>
-
-          <HeaderedContentControl Classes="groupBox"
-                                  Header="{Binding Text[group.rightStick], Source={x:Static loc:Strings.Instance}}">
-            <StackPanel Spacing="3">
-              <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindRStickUp}" Margin="1" />
-                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindRStickDown}" Margin="1" />
-
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindRStickLeft}" Margin="1" />
-                <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindRStickRight}" Margin="1" />
-
-                <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
-                <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
-                           Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
-                <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindRStickPress}" Margin="1" />
-                <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindRStickModifier}" Margin="1" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Classes="groupLabel" HorizontalAlignment="Left"
+                           Text="Y" Margin="2,0,4,0" />
+                <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindY}" Margin="1" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Classes="groupLabel" HorizontalAlignment="Left"
+                           Text="B" Margin="6,0,4,0" />
+                <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindB}" Margin="1" />
               </Grid>
+            </HeaderedContentControl>
+            <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="FaceButtons"
+                    ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+          </Panel>
 
-              <StackPanel Spacing="1">
-                <TextBlock Classes="caption" HorizontalAlignment="Left"
-                           Text="{Binding RightDeadzoneText}" />
-                <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
-                        Value="{Binding RightDeadzone}" />
+          <Panel>
+            <HeaderedContentControl Classes="groupBox"
+                                    Header="{Binding Text[group.rightStick], Source={x:Static loc:Strings.Instance}}">
+              <StackPanel Spacing="3">
+                <Grid ColumnDefinitions="26,*,26,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                  <TextBlock Grid.Row="0" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.up], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="0" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.down], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding BindRStickUp}" Margin="1" />
+                  <ContentControl Grid.Row="1" Grid.Column="3" Content="{Binding BindRStickDown}" Margin="1" />
 
-                <TextBlock Classes="caption" HorizontalAlignment="Left"
-                           Text="{Binding RightRangeText}" />
-                <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
-                        Value="{Binding RightRange}" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.left], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="2" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.right], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="3" Grid.Column="1" Content="{Binding BindRStickLeft}" Margin="1" />
+                  <ContentControl Grid.Row="3" Grid.Column="3" Content="{Binding BindRStickRight}" Margin="1" />
+
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.pressed], Source={x:Static loc:Strings.Instance}}" />
+                  <TextBlock Grid.Row="4" Grid.Column="3" Classes="groupLabel" HorizontalAlignment="Center"
+                             Text="{Binding Text[bind.modifier], Source={x:Static loc:Strings.Instance}}" />
+                  <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding BindRStickPress}" Margin="1" />
+                  <ContentControl Grid.Row="5" Grid.Column="3" Content="{Binding BindRStickModifier}" Margin="1" />
+                </Grid>
+
+                <StackPanel Spacing="1">
+                  <TextBlock Classes="caption" HorizontalAlignment="Left"
+                             Text="{Binding RightDeadzoneText}" />
+                  <Slider Minimum="0" Maximum="0.5" SmallChange="0.01" LargeChange="0.05"
+                          Value="{Binding RightDeadzone}" />
+
+                  <TextBlock Classes="caption" HorizontalAlignment="Left"
+                             Text="{Binding RightRangeText}" />
+                  <Slider Minimum="0.5" Maximum="1.5" SmallChange="0.01" LargeChange="0.05"
+                          Value="{Binding RightRange}" />
+                </StackPanel>
               </StackPanel>
-            </StackPanel>
-          </HeaderedContentControl>
+            </HeaderedContentControl>
+            <Button Classes="groupClear" Command="{Binding ClearGroupCommand}" CommandParameter="RightStick"
+                    ToolTip.Tip="{Binding Text[group.clear], Source={x:Static loc:Strings.Instance}}" />
+          </Panel>
 
         </StackPanel>
       </ScrollViewer>

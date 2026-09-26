@@ -172,6 +172,7 @@ public sealed class Strings : INotifyPropertyChanged
 
         ["group.leftStick"] = "Left Stick",
         ["group.rightStick"] = "Right Stick",
+        ["group.clear"] = "Clear the bindings in this group",
         ["group.dpad"] = "D-Pad",
         ["group.faceButtons"] = "Face Buttons",
         ["group.shoulders"] = "Shoulders",
@@ -386,6 +387,7 @@ public sealed class Strings : INotifyPropertyChanged
 
         ["group.leftStick"] = "آنالوگ چپ",
         ["group.rightStick"] = "آنالوگ راست",
+        ["group.clear"] = "پاک کردن دکمه‌های این بخش",
         ["group.dpad"] = "دی‌پد",
         ["group.faceButtons"] = "دکمه‌های اصلی",
         ["group.shoulders"] = "دکمه‌های شانه",
