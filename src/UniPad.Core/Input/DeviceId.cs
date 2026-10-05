@@ -40,8 +40,17 @@ public sealed record DeviceId(string Guid, int Port)
     /// <summary>Sentinel used by bindings that reference the mouse.</summary>
     public static readonly DeviceId Mouse = new("mouse", 0);
 
-    /// <summary>True when this id refers to a synthetic (non joystick) source.</summary>
-    public bool IsSynthetic => Guid is "keyboard" or "mouse" || Guid.StartsWith("phone-", StringComparison.Ordinal);
+    /// <summary>Prefix of every phone device id.</summary>
+    public const string PhonePrefix = "phone-";
+
+    /// <summary>True for the built-in keyboard and mouse source only.</summary>
+    public bool IsKeyboardMouse => Guid is "keyboard" or "mouse";
+
+    /// <summary>True for a phone connected through the web controller.</summary>
+    public bool IsPhone => Guid.StartsWith(PhonePrefix, StringComparison.Ordinal);
+
+    /// <summary>True when this id refers to a synthetic (non SDL) source.</summary>
+    public bool IsSynthetic => IsKeyboardMouse || IsPhone;
 
     /// <inheritdoc />
     public override string ToString() => $"{Guid}:{Port}";

@@ -67,9 +67,10 @@ public sealed class AppState : IDisposable
         Phones.ClientsChanged += RaiseDevicesChanged;
 
         // Phones resolve to their own device, everything else synthetic to the keyboard.
-        Input.SyntheticResolver = id => id.Guid.StartsWith("phone-", StringComparison.Ordinal)
-            ? Phones.Find(id)
-            : KeyboardMouse?.Device;
+        Input.SyntheticResolver = id => id.IsPhone ? Phones.Find(id) : KeyboardMouse?.Device;
+
+        // Lets bind capture hear phones even before a player has a device assigned.
+        Input.SyntheticDevices = () => Phones.Devices;
 
         Output = new OutputManager(Input);
         HidHide = new HidHideService();
@@ -117,7 +118,9 @@ public sealed class AppState : IDisposable
     /// </para>
     /// </summary>
     public int InputSourceCount =>
-        Input.Devices.Count() + (KeyboardMouse is { IsRunning: true } ? 1 : 0);
+        Input.Devices.Count()
+        + (KeyboardMouse is { IsRunning: true } ? 1 : 0)
+        + Phones.Devices.Count();
 
     /// <summary>Virtual pad output manager.</summary>
     public OutputManager Output { get; }

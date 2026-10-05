@@ -36,6 +36,11 @@ public sealed class PhoneClient
     internal int Buttons;
     internal readonly float[] Axes = new float[PhoneLayout.AxisCount];
     internal long LastPacketTicks;
+
+    // A short tap can arrive as press+release in one network burst. The latch keeps the press
+    // visible for at least MinPressMs so neither the poll loop nor bind capture misses it.
+    internal int Latched;
+    internal long LatchUntilTicks;
 }
 
 /// <summary>
@@ -48,6 +53,9 @@ public sealed class PhoneServer : IDisposable
     /// </summary>
     private const int StaleMs = 500;
     private const int MaxClients = 16;
+
+    /// <summary>Minimum time a tapped button stays pressed, so quick taps are never lost.</summary>
+    private const int MinPressMs = 40;
 
     private readonly ConcurrentDictionary<string, PhoneClient> _clients = new();
     private readonly Dictionary<string, string> _pages = new();
@@ -69,6 +77,10 @@ public sealed class PhoneServer : IDisposable
 
     public InputDevice? Find(DeviceId id) =>
         _clients.TryGetValue(id.Guid, out var c) ? c.Device : null;
+
+    /// <summary>Phones that are currently online.</summary>
+    public IEnumerable<InputDevice> Devices =>
+    _clients.Values.Where(c => c.Device.IsConnected).Select(c => c.Device);
 
     public void Start()
     {
@@ -142,10 +154,24 @@ public sealed class PhoneServer : IDisposable
             var snapshot = client.Device.Snapshot;
             lock (client.Gate)
             {
-                var fresh = client.Device.IsConnected && now - client.LastPacketTicks < staleTicks;
+                var fresh = client.Device.IsConnected && now - client.LastPacketTicks < staleTicks;                
+                var buttons = client.Buttons;
+
+                if (client.Latched != 0)
+                {
+                    if (now < client.LatchUntilTicks)
+                    {
+                    buttons |= client.Latched;
+                    }
+                    else
+                    {
+                    client.Latched = 0;
+                    }
+                }
+                
                 for (var i = 0; i < PhoneLayout.ButtonCount; i++)
                 {
-                    snapshot.Buttons[i] = fresh && ((client.Buttons >> i) & 1) != 0;
+                    snapshot.Buttons[i] = fresh && ((buttons >> i) & 1) != 0;
                 }
 
                 for (var i = 0; i < PhoneLayout.AxisCount; i++)
@@ -235,7 +261,7 @@ public sealed class PhoneServer : IDisposable
         var cid = new string(rawId.Where(Uri.IsHexDigit).Take(16).ToArray()).ToLowerInvariant();
         if (cid.Length < 8) return null;
 
-        var key = "phone-" + cid;
+        var key = DeviceId.PhonePrefix + cid;
         if (!_clients.ContainsKey(key) && _clients.Count >= MaxClients)
         {
             await RawSendAsync(ws, "{\"t\":\"full\"}");
@@ -277,6 +303,7 @@ public sealed class PhoneServer : IDisposable
         lock (client.Gate)
         {
             client.Buttons = 0;
+            client.Latched = 0;
             Array.Clear(client.Axes);
             client.LastPacketTicks = Stopwatch.GetTimestamp();
         }
@@ -296,21 +323,32 @@ public sealed class PhoneServer : IDisposable
         return client;
     }
 
-    private static void ApplyState(PhoneClient client, JsonElement m)
+     private static void ApplyState(PhoneClient client, JsonElement m)
     {
         static float Read(JsonElement e, string name, float min) =>
             e.TryGetProperty(name, out var v) && v.TryGetDouble(out var d) ? Math.Clamp((float)d, min, 1f) : 0f;
 
+        var now = Stopwatch.GetTimestamp();
+        var bits = m.TryGetProperty("b", out var b) && b.TryGetInt32(out var value) ? value : 0;
+
         lock (client.Gate)
         {
-            client.Buttons = m.TryGetProperty("b", out var b) && b.TryGetInt32(out var bits) ? bits : 0;
+            // Newly pressed buttons are latched so a press+release in the same burst still counts.
+            var rising = bits & ~client.Buttons;
+            if (rising != 0)
+            {
+            client.Latched |= rising;
+            client.LatchUntilTicks = now + Stopwatch.Frequency * MinPressMs / 1000;
+            }
+
+            client.Buttons = bits;
             client.Axes[PhoneLayout.LX] = Read(m, "lx", -1f);
             client.Axes[PhoneLayout.LY] = Read(m, "ly", -1f);
             client.Axes[PhoneLayout.RX] = Read(m, "rx", -1f);
             client.Axes[PhoneLayout.RY] = Read(m, "ry", -1f);
             client.Axes[PhoneLayout.LT] = Read(m, "lt", 0f);
             client.Axes[PhoneLayout.RT] = Read(m, "rt", 0f);
-            client.LastPacketTicks = Stopwatch.GetTimestamp();
+            client.LastPacketTicks = now;
         }
     }
 

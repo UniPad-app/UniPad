@@ -29,7 +29,7 @@ function button(label,key,x,y,size,sq){
   e.style.width=e.style.height=size+'px';place(e,x,y);pad.appendChild(e);
   const set=on=>{e.classList.toggle('on',on);
     if(typeof key==='number') st.b=on?(st.b|(1<<key)):(st.b&~(1<<key)); else st[key]=on?1:0;
-    dirty=true; if(on&&navigator.vibrate) navigator.vibrate(12);};
+    dirty=true; send(); if(on&&navigator.vibrate) navigator.vibrate(12);};
   e.onpointerdown=ev=>{e.setPointerCapture(ev.pointerId);set(true);};
   e.onpointerup=e.onpointercancel=()=>set(false);
 }
@@ -82,13 +82,15 @@ function connect(){
 }
 connect();
 
-// Send immediately on change, plus a heartbeat every 100 ms. Skip if the socket is backed up.
-let last=0;
-setInterval(()=>{const now=performance.now();
+// Buttons send the instant they change. On top of that a steady ~60 Hz stream runs while the
+// socket is open: it keeps the phone's Wi-Fi out of power-save, which otherwise batches packets
+// and adds 100-300 ms of lag.
+function send(){
   if(!ws||ws.readyState!==1)return;
-  if(!dirty&&now-last<100)return;
-  if(ws.bufferedAmount>256)return;
-  ws.send(JSON.stringify({t:'s',...st}));dirty=false;last=now;},8);
+  if(ws.bufferedAmount>1024)return;
+  ws.send(JSON.stringify({t:'s',...st}));dirty=false;
+}
+setInterval(send,16);
 setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping',ts:performance.now()}));},2000);
 
 // Release everything when the app goes to background.

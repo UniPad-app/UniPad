@@ -603,6 +603,11 @@ public sealed unsafe class SdlInputBackend : IDisposable
     public Func<DeviceId, InputDevice?>? SyntheticResolver { get; set; }
 
     /// <summary>
+    /// Extra non-SDL devices (phones) that bind capture should also listen to. Set by the app layer.
+    /// </summary>
+    public Func<IEnumerable<InputDevice>>? SyntheticDevices { get; set; }
+
+    /// <summary>
     /// Looks up a tracked device by its stable id, falling back to the synthetic resolver so that a
     /// keyboard binding resolves through exactly the same call as a joystick one.
     /// </summary>

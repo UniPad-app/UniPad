@@ -388,6 +388,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
                 Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
             }
 
+            // Online phones are listed by name, right after the keyboard.
+            foreach (var phone in _state.Phones.Devices.OrderBy(d => d.Name, StringComparer.CurrentCulture))
+            {
+                Devices.Add(new DeviceOption(phone.Id, phone.Name));
+            }
+
             // The ordinal in DisplayName counts within one GUID, so two sticks on the same adapter can
             // both be the first of their own kind and read identically in the picker. Numbering is done
             // here instead, where the whole list is visible: a name that occurs once is shown bare, and
@@ -888,6 +894,7 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         var key = result.Outcome switch
         {
             AutoMapOutcome.KeyboardMouse => "msg.autoMapKeyboard",
+            AutoMapOutcome.Phone => "msg.autoMapPhone",
             AutoMapOutcome.SdlDatabase => "msg.autoMapSdl",
             AutoMapOutcome.Guessed => "msg.autoMapGuessed",
             _ => "msg.autoMapFailed",

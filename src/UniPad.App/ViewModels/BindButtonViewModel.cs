@@ -123,7 +123,7 @@ public sealed partial class BindButtonViewModel : ViewModelBase
         // of the loop for the write.
         _owner.EditMapping(() => _owner.Mapping.SetBinding(Target, binding));
 
-        if (_owner.Mapping.Device is null && binding.Device is not null && !binding.Device.IsSynthetic)
+        if (_owner.Mapping.Device is null && binding.Device is not null && !binding.Device.IsKeyboardMouse)
         {
             _owner.AdoptDevice(binding.Device);
         }

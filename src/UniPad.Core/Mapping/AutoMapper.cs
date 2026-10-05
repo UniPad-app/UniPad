@@ -1,5 +1,6 @@
 using SDL;
 using Serilog;
+using UniPad.Core.Network;
 using UniPad.Core.Input;
 
 namespace UniPad.Core.Mapping;
@@ -31,6 +32,9 @@ public enum AutoMapOutcome
 
     /// <summary>Nothing could be guessed; the device needs binding by hand.</summary>
     Failed,
+
+    /// <summary>The standard phone controller layout was applied.</summary>
+    Phone,
 }
 
 /// <summary>Outcome of an automatic mapping attempt, shown to the user as a notification.</summary>
@@ -67,7 +71,23 @@ public static unsafe class AutoMapper
 
         // The keyboard and mouse have no discoverable topology to reason about, so they get a fixed
         // layout instead of either of the joystick paths.
-        if (device.Id.IsSynthetic)
+        // A phone has a fixed, known layout, so it gets an exact mapping instead of a guess.
+        if (device.Id.IsPhone)
+        {
+            PhoneLayout.ApplyTo(mapping, device.Id);
+
+            Log.Information("Applied the standard phone layout to {Name}", device.Name);
+
+            return new AutoMapResult(
+            Success: true,
+            UsedSdlMapping: false,
+            Outcome: AutoMapOutcome.Phone,
+            DeviceName: device.Name,
+            MappedTargets: mapping.Bindings.Count,
+            Message: "Applied the standard phone layout.");
+        }
+
+        if (device.Id.IsKeyboardMouse)
         {
             var keyCount = ApplyKeyboardMouseMapping(mapping);
 
