@@ -25,4 +25,16 @@
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Web server for phone controllers -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- QR code on the admin page -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The phone and admin pages are embedded inside the exe -->
+    <EmbeddedResource Include="Network\Web\*.html" LogicalName="UniPad.Web.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

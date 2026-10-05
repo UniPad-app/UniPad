@@ -1,0 +1,98 @@
+<!doctype html><html lang="fa"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>UniPad Phone</title>
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+html,body{margin:0;height:100%;background:#111;color:#eee;font-family:sans-serif;overflow:hidden;touch-action:none}
+#bar{position:fixed;top:0;left:0;right:0;height:28px;display:flex;justify-content:space-between;padding:4px 12px;font-size:14px;background:#000a;z-index:5}
+.b{position:absolute;border-radius:50%;background:#333;border:2px solid #555;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:17px}
+.b.on{background:#3a8f6a}.sq{border-radius:10px}
+.stick{position:absolute;width:150px;height:150px;border-radius:50%;background:#222;border:2px solid #444}
+.knob{position:absolute;left:43px;top:43px;width:60px;height:60px;border-radius:50%;background:#777;pointer-events:none}
+#rot{display:none;position:fixed;inset:0;background:#111;align-items:center;justify-content:center;font-size:22px;z-index:9}
+@media (orientation:portrait){#rot{display:flex}}
+</style></head><body>
+<div id="bar"><span id="st">در حال اتصال…</span><span id="pl"></span><span id="ms"></span></div>
+<div id="rot">گوشی را افقی بگیرید</div>
+<div id="pad"></div>
+<script>
+// Must match PhoneLayout.cs
+const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,Back:6,Start:7,Guide:8,L3:9,R3:10,Up:11,Down:12,Left:13,Right:14};
+const st={b:0,lx:0,ly:0,rx:0,ry:0,lt:0,rt:0}; let dirty=true;
+const pad=document.getElementById('pad');
+const $=id=>document.getElementById(id);
+
+function place(e,x,y){e.style.left=x+'%';e.style.top=y+'%';e.style.transform='translate(-50%,-50%)';}
+function button(label,key,x,y,size,sq){
+  const e=document.createElement('div');e.className='b'+(sq?' sq':'');e.textContent=label;
+  e.style.width=e.style.height=size+'px';place(e,x,y);pad.appendChild(e);
+  const set=on=>{e.classList.toggle('on',on);
+    if(typeof key==='number') st.b=on?(st.b|(1<<key)):(st.b&~(1<<key)); else st[key]=on?1:0;
+    dirty=true; if(on&&navigator.vibrate) navigator.vibrate(12);};
+  e.onpointerdown=ev=>{e.setPointerCapture(ev.pointerId);set(true);};
+  e.onpointerup=e.onpointercancel=()=>set(false);
+}
+function stick(x,y,kx,ky){
+  const e=document.createElement('div');e.className='stick';place(e,x,y);
+  const k=document.createElement('div');k.className='knob';e.appendChild(k);pad.appendChild(e);
+  let id=null;
+  const move=ev=>{const r=e.getBoundingClientRect();
+    let dx=(ev.clientX-r.left-r.width/2)/(r.width/2), dy=(ev.clientY-r.top-r.height/2)/(r.height/2);
+    const m=Math.hypot(dx,dy); if(m>1){dx/=m;dy/=m;}
+    st[kx]=+dx.toFixed(3); st[ky]=+dy.toFixed(3);
+    k.style.transform=`translate(${dx*45}px,${dy*45}px)`; dirty=true;};
+  e.onpointerdown=ev=>{id=ev.pointerId;e.setPointerCapture(id);move(ev);};
+  e.onpointermove=ev=>{if(ev.pointerId===id)move(ev);};
+  e.onpointerup=e.onpointercancel=ev=>{if(ev.pointerId!==id)return;id=null;st[kx]=st[ky]=0;k.style.transform='';dirty=true;};
+}
+
+// ---- Layout (x%, y%) ----
+button('LT','lt',6,18,56,1); button('LB',BTN.LB,17,18,56,1);
+button('RB',BTN.RB,83,18,56,1); button('RT','rt',94,18,56,1);
+button('Back',BTN.Back,40,30,50); button('☰',BTN.Guide,50,30,50); button('Start',BTN.Start,60,30,50);
+stick(18,58,'lx','ly'); stick(62,76,'rx','ry');
+button('▲',BTN.Up,38,62,48,1); button('▼',BTN.Down,38,90,48,1);
+button('◀',BTN.Left,31,76,48,1); button('▶',BTN.Right,45,76,48,1);
+button('Y',BTN.Y,84,40,60); button('A',BTN.A,84,74,60);
+button('X',BTN.X,76,57,60); button('B',BTN.B,92,57,60);
+button('L3',BTN.L3,6,90,44); button('R3',BTN.R3,94,90,44);
+
+// ---- Identity ----
+const q=new URLSearchParams(location.search);
+const token=q.get('k')||localStorage.k||''; localStorage.k=token;
+let cid=localStorage.cid;
+if(!cid){cid=[...crypto.getRandomValues(new Uint8Array(8))].map(v=>v.toString(16).padStart(2,'0')).join('');localStorage.cid=cid;}
+let nm=localStorage.nm; if(!nm){nm=prompt('اسمت چیه؟')||'Player';localStorage.nm=nm;}
+let player=-1;
+
+// ---- Connection with auto-reconnect ----
+let ws, stop=false, retry=500;
+function connect(){
+  ws=new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen=()=>{retry=500;ws.send(JSON.stringify({t:'hello',id:cid,name:nm,k:token}));};
+  ws.onmessage=ev=>{const m=JSON.parse(ev.data);
+    if(m.t==='welcome'){player=m.player;$('st').textContent='وصل شد';$('pl').textContent=`پلیر ${player+1} — ${m.name}`;dirty=true;}
+    else if(m.t==='name'){$('pl').textContent=`پلیر ${player+1} — ${m.name}`;}
+    else if(m.t==='pong'){const ms=Math.round(performance.now()-m.ts);$('ms').textContent=ms+' ms';ws.send(JSON.stringify({t:'rtt',ms}));}
+    else if(m.t==='full'){stop=true;$('st').textContent='همه‌ی جاها پر است';}
+    else if(m.t==='kicked'){stop=true;$('st').textContent='از بازی خارج شدید';}
+    else if(m.t==='badtoken'){stop=true;$('st').textContent='QR نامعتبر است؛ دوباره اسکن کنید';}};
+  ws.onclose=()=>{if(stop)return;$('st').textContent='قطع شد، اتصال دوباره…';setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
+}
+connect();
+
+// Send immediately on change, plus a heartbeat every 100 ms. Skip if the socket is backed up.
+let last=0;
+setInterval(()=>{const now=performance.now();
+  if(!ws||ws.readyState!==1)return;
+  if(!dirty&&now-last<100)return;
+  if(ws.bufferedAmount>256)return;
+  ws.send(JSON.stringify({t:'s',...st}));dirty=false;last=now;},8);
+setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping',ts:performance.now()}));},2000);
+
+// Release everything when the app goes to background.
+document.addEventListener('visibilitychange',()=>{if(document.hidden){st.b=0;st.lx=st.ly=st.rx=st.ry=st.lt=st.rt=0;dirty=true;}});
+// Fullscreen on first touch (Android).
+document.addEventListener('pointerdown',()=>{document.documentElement.requestFullscreen?.().catch(()=>{});},{once:true});
+</script></body></html>

@@ -41,7 +41,7 @@ public sealed record DeviceId(string Guid, int Port)
     public static readonly DeviceId Mouse = new("mouse", 0);
 
     /// <summary>True when this id refers to a synthetic (non joystick) source.</summary>
-    public bool IsSynthetic => Guid is "keyboard" or "mouse";
+    public bool IsSynthetic => Guid is "keyboard" or "mouse" || Guid.StartsWith("phone-", StringComparison.Ordinal);
 
     /// <inheritdoc />
     public override string ToString() => $"{Guid}:{Port}";

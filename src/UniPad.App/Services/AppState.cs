@@ -6,6 +6,7 @@ using UniPad.Core.Mapping;
 using UniPad.Core.Output;
 using UniPad.Core.Profiles;
 using UniPad.Core.SystemServices;
+using UniPad.Core.Network;
 
 namespace UniPad.App.Services;
 
@@ -58,8 +59,17 @@ public sealed class AppState : IDisposable
             KeyboardMouse.Mouse.InvertY = Config.MouseInvertY;
 
             // Lets FindDevice resolve "keyboard:0" through the same call every joystick uses.
-            Input.SyntheticResolver = _ => KeyboardMouse.Device;
         }
+
+        Phones = new PhoneServer(3000);
+        Phones.AssignSlot = AssignPhoneSlot;
+        Phones.Released = ReleasePhoneSlot;
+        Phones.ClientsChanged += RaiseDevicesChanged;
+
+        // Phones resolve to their own device, everything else synthetic to the keyboard.
+        Input.SyntheticResolver = id => id.Guid.StartsWith("phone-", StringComparison.Ordinal)
+            ? Phones.Find(id)
+            : KeyboardMouse?.Device;
 
         Output = new OutputManager(Input);
         HidHide = new HidHideService();
@@ -71,13 +81,12 @@ public sealed class AppState : IDisposable
         // The mapping evaluation runs inside the poll cycle so latency stays within one iteration.
         // The synthetic source refreshes first, so the mapping engines see the same cycle's mouse
         // delta rather than the previous one.
-        Input.OnPollCycle = KeyboardMouse is null
-            ? Output.ProcessCycle
-            : () =>
-            {
-                KeyboardMouse.Poll();
-                Output.ProcessCycle();
-            };
+        Input.OnPollCycle = () =>
+        {
+            KeyboardMouse?.Poll();
+            Phones.Poll();
+            Output.ProcessCycle();
+        };
 
         Input.DeviceChanged += OnDeviceChanged;
     }
@@ -93,6 +102,9 @@ public sealed class AppState : IDisposable
 
     /// <summary>Synthetic keyboard and mouse source, or null when the feature is disabled.</summary>
     public KeyboardMouseBackend? KeyboardMouse { get; }
+
+    /// <summary>Phone controller server.</summary>
+    public PhoneServer Phones { get; }
 
     /// <summary>
     /// Number of sources a player can be mapped to: every SDL device, plus the synthetic keyboard
@@ -180,6 +192,15 @@ public sealed class AppState : IDisposable
 
         // Started after SDL so that a failure here cannot prevent controllers from working.
         KeyboardMouse?.Start();
+        try
+        {
+            Phones.Start();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Phone server failed to start");
+            RaiseStatus($"Phone server failed: {ex.Message}");
+        }
 
         Output.TryInitialiseDriver();
         Output.Enabled = Config.OutputEnabled;
@@ -679,6 +700,96 @@ public sealed class AppState : IDisposable
     public void ReportStatus(string key, string? detail, string? fallback = null) =>
         RaiseStatus(new StatusReport(key, detail ?? string.Empty, fallback ?? key));
 
+    /// <summary>
+    /// Gives a phone a player slot: its previous slot if it had one (reconnect), otherwise the
+    /// first free one. Called on a network thread.
+    /// </summary>
+    private int AssignPhoneSlot(PhoneClient phone)
+    {
+        var id = phone.Device.Id;
+        PlayerMapping? player;
+
+        lock (_players)
+        {
+            player = _players.FirstOrDefault(p => p.Device == id)
+                     ?? _players.FirstOrDefault(p => !p.Enabled && p.Device is null)
+                     ?? _players.FirstOrDefault(p => !p.Enabled);
+
+            if (player is null)
+            {
+                return -1;
+            }
+
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                // Keep custom bindings on reconnect; write the standard layout otherwise.
+                if (player.Device != id || !player.HasAnyBinding)
+                {
+                    PhoneLayout.ApplyTo(player, id);
+                }
+
+                player.Device = id;
+                player.DeviceName = phone.Device.Name;
+                player.Enabled = true;
+                player.OutputType = player.Index < OutputManager.XInputSlotCount
+                    ? VirtualPadType.Xbox360
+                    : VirtualPadType.DualShock4;
+            }
+        }
+
+        QueueApply();
+        return player.Index;
+    }
+
+    /// <summary>Frees the slot of a kicked phone.</summary>
+    private void ReleasePhoneSlot(PhoneClient phone)
+    {
+        lock (_players)
+        {
+            var player = _players.FirstOrDefault(p => p.Device == phone.Device.Id);
+            if (player is null)
+            {
+                return;
+            }
+
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                player.ClearBindings();
+                player.Enabled = false;
+                player.Device = null;
+                player.DeviceName = null;
+            }
+        }
+
+        QueueApply();
+    }
+
+    /// <summary>Applies the output off-thread, serialised with hot-plug handling.</summary>
+    private void QueueApply()
+    {
+        _ = Task.Run(async () =>
+        {
+            await _hotplugGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (!_disposed)
+                {
+                    ApplyOutput();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Applying phone slot failed");
+            }
+            finally
+            {
+                _hotplugGate.Release();
+            }
+
+            RaiseDevicesChanged();
+        });
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -703,6 +814,7 @@ public sealed class AppState : IDisposable
 
         // Order matters: stop cloaking before releasing devices so nothing stays hidden.
         HidHide.DisableCloaking();
+        Phones.Dispose();
         Output.Dispose();
         KeyboardMouse?.Dispose();
         Input.Dispose();

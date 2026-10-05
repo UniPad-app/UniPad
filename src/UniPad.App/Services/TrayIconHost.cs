@@ -97,6 +97,11 @@ public sealed class TrayIconHost : IDisposable
 
         menu.Add(new NativeMenuItemSeparator());
 
+        var phones = new NativeMenuItem { Header = "Phones (QR)" };
+        phones.Click += (_, _) => System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo("http://localhost:3000/admin") { UseShellExecute = true });
+        menu.Add(phones);
+
         // Held onto so a later toggle only rewrites this caption instead of rebuilding the menu.
         _toggleItem = new NativeMenuItem { Command = _viewModel.ToggleOutputCommand };
         UpdateToggleCaption();

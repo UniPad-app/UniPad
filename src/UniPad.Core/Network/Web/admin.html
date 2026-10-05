@@ -1,0 +1,26 @@
+<!doctype html><html dir="rtl" lang="fa"><head><meta charset="utf-8"><title>UniPad - گوشی‌ها</title>
+<style>body{font-family:sans-serif;background:#1b1b1b;color:#eee;padding:24px}
+table{border-collapse:collapse;margin-top:16px}td,th{padding:6px 12px;border-bottom:1px solid #333}
+button{margin:0 3px;padding:4px 10px}#url{direction:ltr;font-family:monospace}</style></head><body>
+<h2>اتصال گوشی‌ها</h2>
+<p>با دوربین گوشی این QR را اسکن کنید (گوشی و کامپیوتر باید روی یک Wi-Fi باشند).</p>
+<img id="qr" width="230"><p id="url"></p>
+<button onclick="post('/admin/newtoken')">ساخت QR جدید (QR قبلی باطل می‌شود)</button>
+<table><thead><tr><th>پلیر</th><th>نام</th><th>وضعیت</th><th>تأخیر</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+<script>
+const post=u=>fetch(u,{method:'POST',headers:{'X-UniPad':'1'}}).then(load);
+async function load(){
+  const s=await (await fetch('/admin/state')).json();
+  qr.src=s.qr; url.textContent=s.url; rows.innerHTML='';
+  for(const c of s.clients){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${c.player+1}</td><td></td><td>${c.online?'آنلاین':'قطع'}</td><td>${c.rtt} ms</td><td><button>تغییر نام</button><button>اخراج</button></td>`;
+    tr.children[1].textContent=c.name;
+    const [r,k]=tr.querySelectorAll('button');
+    r.onclick=()=>{const n=prompt('نام جدید',c.name);if(n)post(`/admin/rename/${c.id}?name=${encodeURIComponent(n)}`);};
+    k.onclick=()=>{if(confirm('اخراج شود؟'))post(`/admin/kick/${c.id}`);};
+    rows.appendChild(tr);
+  }
+}
+load(); setInterval(load,1500);
+</script></body></html>
