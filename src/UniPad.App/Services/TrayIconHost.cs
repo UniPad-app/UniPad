@@ -97,7 +97,7 @@ public sealed class TrayIconHost : IDisposable
 
         menu.Add(new NativeMenuItemSeparator());
 
-        var phones = new NativeMenuItem { Header = "Phones (QR)" };
+        var phones = new NativeMenuItem { Header = Strings.Get("tray.phones") };
         phones.Click += (_, _) => System.Diagnostics.Process.Start(
             new System.Diagnostics.ProcessStartInfo("http://localhost:3000/admin") { UseShellExecute = true });
         menu.Add(phones);

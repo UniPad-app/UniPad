@@ -716,7 +716,10 @@ public sealed class AppState : IDisposable
         {
             player = _players.FirstOrDefault(p => p.Device == id)
                      ?? _players.FirstOrDefault(p => !p.Enabled && p.Device is null)
-                     ?? _players.FirstOrDefault(p => !p.Enabled);
+                     ?? _players.FirstOrDefault(p => !p.Enabled)
+                     // Last resort: a slot still held by a phone that is not online right now.
+                     ?? _players.FirstOrDefault(p => p.Device is { IsPhone: true }
+                                                     && Phones.Find(p.Device) is not { IsConnected: true });
 
             if (player is null)
             {

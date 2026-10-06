@@ -40,7 +40,7 @@ public sealed class PhoneClient
     // A short tap can arrive as press+release in one network burst. The latch keeps the press
     // visible for at least MinPressMs so neither the poll loop nor bind capture misses it.
     internal int Latched;
-    internal long LatchUntilTicks;
+    internal readonly long[] LatchUntil = new long[PhoneLayout.ButtonCount];
 }
 
 /// <summary>
@@ -159,13 +159,12 @@ public sealed class PhoneServer : IDisposable
 
                 if (client.Latched != 0)
                 {
-                    if (now < client.LatchUntilTicks)
+                    for (var i = 0; i < PhoneLayout.ButtonCount; i++)
                     {
-                    buttons |= client.Latched;
-                    }
-                    else
-                    {
-                    client.Latched = 0;
+                        var bit = 1 << i;
+                        if ((client.Latched & bit) == 0) continue;
+                        if (now < client.LatchUntil[i]) buttons |= bit;
+                        else client.Latched &= ~bit;
                     }
                 }
                 
@@ -337,8 +336,12 @@ public sealed class PhoneServer : IDisposable
             var rising = bits & ~client.Buttons;
             if (rising != 0)
             {
-            client.Latched |= rising;
-            client.LatchUntilTicks = now + Stopwatch.Frequency * MinPressMs / 1000;
+                var until = now + Stopwatch.Frequency * MinPressMs / 1000;
+                for (var i = 0; i < PhoneLayout.ButtonCount; i++)
+                {
+                    if ((rising & (1 << i)) != 0) client.LatchUntil[i] = until;
+                }
+                client.Latched |= rising;
             }
 
             client.Buttons = bits;

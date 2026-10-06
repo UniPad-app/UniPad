@@ -231,6 +231,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["tray.disableOutput"] = "Disable Output",
         ["tray.exit"] = "Exit",
         ["tray.tooltip"] = "UniPad - Universal Controller Mapper",
+        ["tray.phones"] = "Phones (QR)",
 
         ["about.heading"] = "UniPad",
         ["about.tagline"] = "Universal controller mapper for Windows.",
@@ -447,6 +448,7 @@ public sealed class Strings : INotifyPropertyChanged
         ["tray.disableOutput"] = "غیرفعال کردن خروجی",
         ["tray.exit"] = "خروج",
         ["tray.tooltip"] = "UniPad - نگاشت‌گر همه‌کاره کنترلر",
+        ["tray.phones"] = "گوشی‌ها (QR)",
 
         ["about.heading"] = "UniPad",
         ["about.tagline"] = "نگاشت‌گر همه‌کاره کنترلر برای ویندوز.",

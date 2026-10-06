@@ -269,9 +269,10 @@ executable sits on read-only media). Attach the newest log file to any bug repor
 UniPad creates a virtual gamepad through the public ViGEmBus driver and does nothing else to your
 system. It does not inject into games, hook processes, or hide itself. Some competitive titles with
 kernel-mode anti-cheat block virtual input devices on principle, and that is their decision to
-make — UniPad will not try to work around it. Nothing is sent anywhere: there is no telemetry, no
-account, and no network access apart from downloading the ViGEmBus/HidHide installers when you
-explicitly ask it to.
+make — UniPad will not try to work around it. Nothing is sent anywhere: there is no telemetry
+and no account. The only network activity is downloading the ViGEmBus/HidHide installers when you
+explicitly ask, and the local phone-controller server on port 3000, which only accepts phones on your
+own network that scanned the QR code.
 
 ## Contributing
 
