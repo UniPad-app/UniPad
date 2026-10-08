@@ -59,6 +59,7 @@
       <ListBox Grid.Column="0" Classes="sidebar" Width="92" Margin="0,0,6,.5"
                SelectedIndex="{Binding SelectedCategoryIndex}">
         <ListBoxItem Content="{Binding Text[nav.controls], Source={x:Static loc:Strings.Instance}}" />
+        <ListBoxItem Content="{Binding Text[nav.phones], Source={x:Static loc:Strings.Instance}}" />
         <ListBoxItem Content="{Binding Text[tab.advanced], Source={x:Static loc:Strings.Instance}}" />
         <ListBoxItem Content="{Binding Text[nav.about], Source={x:Static loc:Strings.Instance}}" />
       </ListBox>
@@ -79,6 +80,12 @@
           </DataTemplate>
         </TabControl.ContentTemplate>
       </TabControl>
+
+      <!-- Phones: QR code and connected phones, framed like Advanced and About. -->
+      <Border Grid.Column="1" Classes="categoryFrame" Margin="0,0,0,.5"
+              IsVisible="{Binding IsPhonesCategory}">
+        <ContentControl Content="{Binding Phones}" />
+      </Border>
 
       <!-- Advanced and About: plain framed panels, no tab header of their own. -->
       <Border Grid.Column="1" Classes="categoryFrame" Margin="0,0,0,.5"

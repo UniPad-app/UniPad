@@ -168,6 +168,15 @@ Add players on tabs 1–8. Set each one's **Input Device** and **Output Mode**.
 > XInput-only games will not see. UniPad states this on those tabs. This is a Windows limitation,
 > not a UniPad one.
 
+### Phones as controllers
+
+Any phone on the same Wi-Fi can be a controller. Open the **Phones** page (sidebar, between
+**Controls** and **Advanced**, or **Phones (QR)** in the tray menu) and scan the QR code with the
+phone's camera. The page shows the join link with a copy button and the state of the local server on
+port 3000. It also lists every phone with its player slot, online state and latency, and lets you
+rename or kick a phone, or disconnect them all. **New QR Code** invalidates the old link.
+The same page is also available in a browser on this PC through **Open in Browser**.
+
 ### Stopping "double input"
 
 Windows sees both your physical controller *and* the virtual one, so some games register every
@@ -226,7 +235,7 @@ UniPad/
     │   ├── Profiles/              ProfileStore + JSON source-generated context
     │   └── System/                PortablePaths, DriverBootstrapper, HidHideService, LogSetup
     └── UniPad.App/                Avalonia 11 UI
-        ├── Views/                 MainWindow, PlayerConfigView, AdvancedView, AboutView
+        ├── Views/                 MainWindow, PlayerConfigView, PhonesView, AdvancedView, AboutView
         ├── Views/Controls/        ControllerPreview, AnalogStickPreview, TriggerBar, BindButton
         ├── ViewModels/            MainWindow, PlayerConfig, Advanced, About, BindButton
         ├── Services/              AppState, BindCaptureService, TrayIconHost, StartupRegistration

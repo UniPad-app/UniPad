@@ -20,6 +20,9 @@
     <DataTemplate DataType="vm:AdvancedViewModel">
       <views:AdvancedView />
     </DataTemplate>
+    <DataTemplate DataType="vm:PhonesViewModel">
+      <views:PhonesView />
+    </DataTemplate>
     <DataTemplate DataType="vm:AboutViewModel">
       <views:AboutView />
     </DataTemplate>

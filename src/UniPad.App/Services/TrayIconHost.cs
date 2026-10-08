@@ -97,9 +97,12 @@ public sealed class TrayIconHost : IDisposable
 
         menu.Add(new NativeMenuItemSeparator());
 
-        var phones = new NativeMenuItem { Header = Strings.Get("tray.phones") };
-        phones.Click += (_, _) => System.Diagnostics.Process.Start(
-            new System.Diagnostics.ProcessStartInfo("http://localhost:3000/admin") { UseShellExecute = true });
+        // Opens the in-app Phones page; the browser admin page is one click away from there.
+        var phones = new NativeMenuItem
+        {
+            Header = Strings.Get("tray.phones"),
+            Command = _viewModel.ShowPhonesCommand,
+        };
         menu.Add(phones);
 
         // Held onto so a later toggle only rewrites this caption instead of rebuilding the menu.

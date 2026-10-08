@@ -52,7 +52,8 @@ public sealed class PhoneServer : IDisposable
     /// If a phone goes silent this long, its buttons are released (no stuck inputs).
     /// </summary>
     private const int StaleMs = 500;
-    private const int MaxClients = 16;
+    /// <summary>Most phones the server accepts at once.</summary>
+    public const int MaxClients = 16;
 
     /// <summary>Minimum time a tapped button stays pressed, so quick taps are never lost.</summary>
     private const int MinPressMs = 40;
@@ -81,6 +82,22 @@ public sealed class PhoneServer : IDisposable
     /// <summary>Phones that are currently online.</summary>
     public IEnumerable<InputDevice> Devices =>
     _clients.Values.Where(c => c.Device.IsConnected).Select(c => c.Device);
+
+    /// <summary>True once the web server is listening.</summary>
+    public bool IsRunning { get; private set; }
+
+    /// <summary>Snapshot of every known phone (online or waiting for a reconnect), ordered by player slot.</summary>
+    public IReadOnlyList<PhoneClient> Clients => _clients.Values.OrderBy(c => c.Player).ToArray();
+
+    /// <summary>
+    /// Invalidates the current join link and QR code. Phones already connected stay connected,
+    /// but a phone that drops has to scan the new code.
+    /// </summary>
+    public void RegenerateToken() => Token = NewToken();
+
+    /// <summary>PNG image of the join QR code.</summary>
+    public byte[] CreateQrPng(int pixelsPerModule = 8) =>
+        PngByteQRCodeHelper.GetQRCode(JoinUrl, QRCodeGenerator.ECCLevel.Q, pixelsPerModule);
 
     public void Start()
     {
@@ -133,13 +150,14 @@ public sealed class PhoneServer : IDisposable
         _app.MapPost("/admin/newtoken", (HttpContext c) =>
         {
             if (!Allowed(c, true)) return Results.StatusCode(403);
-            Token = NewToken();
+            RegenerateToken();
             return Results.Ok();
         });
 
         _app.Map("/ws", HandleSocketAsync);
 
         _app.StartAsync().GetAwaiter().GetResult();
+        IsRunning = true;
         Log.Information("Phone server listening, join URL {Url}", JoinUrl);
     }
 
