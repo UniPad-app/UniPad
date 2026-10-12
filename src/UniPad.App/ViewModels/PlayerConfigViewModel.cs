@@ -23,9 +23,15 @@ public delegate void PadStatePreviewHandler(in PadState state);
 /// <summary>One entry in the input device picker.</summary>
 /// <param name="Id">Stable device id, or null for the "Any / none" entry.</param>
 /// <param name="Display">Text shown in the combo box.</param>
-public sealed record DeviceOption(DeviceId? Id, string Display)
+public sealed class DeviceOption(DeviceId? id, string display)
 {
-    /// <inheritdoc />
+    /// Stable device id, or null for the "Any / none" entry.
+    public DeviceId? Id { get; } = id;
+
+    /// Text shown in the combo box.
+    public string Display { get; } = display;
+
+    /// <inheritdoc/>
     public override string ToString() => Display;
 }
 

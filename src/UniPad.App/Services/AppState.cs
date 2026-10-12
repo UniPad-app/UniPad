@@ -745,6 +745,8 @@ public sealed class AppState : IDisposable
                 using (Output.BeginMappingEdit(other.Index))
                 {
                     other.ClearBindings();
+                    other.RestoreDefaults();    // Reset sliders, vibration, output type, etc. to factory values
+                    other.ProfileName = null;   // Same as ClearAll: the player no longer matches any profile
                     other.Enabled = false;
                     other.Device = null;
                     other.DeviceName = null;
@@ -786,6 +788,8 @@ public sealed class AppState : IDisposable
     /// <summary>Frees the slot of a kicked phone.</summary>
     private void ReleasePhoneSlot(PhoneClient phone)
     {
+        int? releasedIndex = null;
+
         lock (_players)
         {
             var player = _players.FirstOrDefault(p => p.Device == phone.Device.Id);
@@ -797,13 +801,24 @@ public sealed class AppState : IDisposable
             using (Output.BeginMappingEdit(player.Index))
             {
                 player.ClearBindings();
+                player.RestoreDefaults();   // Reset sliders, vibration, output type, etc. to factory values
+                player.ProfileName = null;  // Same as ClearAll: the player no longer matches any profile
                 player.Enabled = false;
                 player.Device = null;
                 player.DeviceName = null;
             }
+
+            releasedIndex = player.Index;
         }
 
         QueueApply();
+
+        // Notify the player's tab so the sliders and device list refresh with the new values
+        var handler = PlayersReassigned;
+        if (releasedIndex is int index && handler is not null)
+        {
+            Dispatcher.UIThread.Post(() => handler.Invoke(new[] { index }));
+        }
     }
 
     /// <summary>Keeps the player's device caption in step with a phone rename.</summary>
