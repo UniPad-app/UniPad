@@ -18,6 +18,12 @@ using UniPad.Core.Input;
 
 namespace UniPad.Core.Network;
 
+/// <summary>One IPv4 address the phone page could be reached on.</summary>
+/// <param name="Address">Dotted IPv4 address.</param>
+/// <param name="Adapter">Friendly name of the network adapter.</param>
+/// <param name="Score">Higher is a better guess for "same Wi-Fi as the phone".</param>
+public sealed record PhoneAddress(string Address, string Adapter, int Score);
+
 /// <summary>
 /// One connected (or temporarily disconnected) phone.
 /// </summary>
@@ -62,11 +68,50 @@ public sealed class PhoneServer : IDisposable
     private readonly Dictionary<string, string> _pages = new();
     private WebApplication? _app;
 
-    public PhoneServer(int port = 3000) => Port = port;
+    /// <summary>Port used when the configuration does not say otherwise.</summary>
+    public const int DefaultPort = 3000;
 
-    public int Port { get; }
+    /// <summary>How many consecutive ports are tried when the configured one is busy.</summary>
+    private const int PortAttempts = 10;
+
+    /// <summary>Adapter name fragments that mark a virtual or VPN adapter a phone cannot reach.</summary>
+    private static readonly string[] VirtualAdapterHints =
+    [
+        "virtual", "vethernet", "hyper-v", "wsl", "vmware", "virtualbox", "vbox",
+        "tap-", "tunnel", "tailscale", "zerotier", "hamachi", "wireguard", "openvpn", "vpn", "bluetooth",
+    ];
+
+    private readonly int _requestedPort;
+
+    public PhoneServer(int port = DefaultPort)
+    {
+        _requestedPort = Math.Clamp(port, 1024, 65535);
+        Port = _requestedPort;
+    }
+
+    /// <summary>Port actually listened on. Can differ from the configured one when it was busy.</summary>
+    public int Port { get; private set; }
+
+    /// <summary>Address chosen by the user for the QR code, or null for automatic.</summary>
+    public string? PreferredAddress { get; set; }
+
+    /// <summary>The address put into the join URL: the user's choice when still valid, else the best guess.</summary>
+    public string CurrentAddress
+    {
+    get
+    {
+        var all = AvailableAddresses();
+        if (PreferredAddress is not null && all.Any(a => a.Address == PreferredAddress))
+        {
+            return PreferredAddress;
+        }
+
+        return all.Count > 0 ? all[0].Address : "127.0.0.1";
+        }
+    }
+    
     public string Token { get; private set; } = NewToken();
-    public string JoinUrl => $"http://{LocalIp()}:{Port}/?k={Token}";
+    public string JoinUrl => $"http://{CurrentAddress}:{Port}/?k={Token}";
 
     /// <summary>
     /// Set by AppState: returns the 0-based player that currently uses this phone, or -1 when no
@@ -119,11 +164,49 @@ public sealed class PhoneServer : IDisposable
     public byte[] CreateQrPng(int pixelsPerModule = 8) =>
         PngByteQRCodeHelper.GetQRCode(JoinUrl, QRCodeGenerator.ECCLevel.Q, pixelsPerModule);
 
+    /// <summary>
+    /// Starts on the configured port and moves to the next ones when it is already taken.
+    /// </summary>
     public void Start()
     {
+        Exception? last = null;
+
+        for (var attempt = 0; attempt < PortAttempts; attempt++)
+        {
+            var port = _requestedPort + attempt;
+            if (port > 65535)
+            {
+                break;
+            }
+
+            try
+            {
+                StartOn(port);
+                Log.Information("Phone server listening on port {Port}, join URL {Url}", port, JoinUrl);
+                return;
+            }
+            catch (IOException ex)
+            {
+                // Kestrel reports a busy port as an IOException; anything else is a real fault.
+                last = ex;
+                Log.Warning("Phone server port {Port} is busy, trying the next one", port);
+
+                try { _app?.DisposeAsync().AsTask().Wait(1000); } catch { /* ignore */ }
+                _app = null;
+            }
+        }
+
+        Port = _requestedPort;
+        throw new InvalidOperationException(
+        $"No free port between {_requestedPort} and {_requestedPort + PortAttempts - 1}.", last);
+    }
+
+    private void StartOn(int port)
+    {
+        Port = port;
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
-        builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(Port));
+        builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(port));
         _app = builder.Build();
 
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(5) });
@@ -179,7 +262,6 @@ public sealed class PhoneServer : IDisposable
 
         _app.StartAsync().GetAwaiter().GetResult();
         IsRunning = true;
-        Log.Information("Phone server listening, join URL {Url}", JoinUrl);
     }
 
     /// <summary>Copies every phone's latest state into its snapshot. Runs on the 1000 Hz poll thread.</summary>
@@ -479,25 +561,65 @@ public sealed class PhoneServer : IDisposable
 
     private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
-    private static string LocalIp()
+    /// <summary>
+    /// Every IPv4 address a phone might reach this PC on, best guess first. Virtual and VPN
+    /// adapters (Hyper-V, WSL, VirtualBox, VPNs) are kept but ranked last.
+    /// </summary>
+    public static IReadOnlyList<PhoneAddress> AvailableAddresses()
     {
+        var result = new List<PhoneAddress>();
+
         foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
         {
-            if (nic.OperationalStatus != OperationalStatus.Up || nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+            if (nic.OperationalStatus != OperationalStatus.Up
+            || nic.NetworkInterfaceType is NetworkInterfaceType.Loopback
+            or NetworkInterfaceType.Tunnel
+            or NetworkInterfaceType.Ppp)
+            {
                 continue;
+            }
+
+            var text = $"{nic.Name} {nic.Description}".ToLowerInvariant();
+            var isVirtual = VirtualAdapterHints.Any(text.Contains);
+            var isPhysical = nic.NetworkInterfaceType is NetworkInterfaceType.Wireless80211
+            or NetworkInterfaceType.Ethernet;
 
             var props = nic.GetIPProperties();
-            if (props.GatewayAddresses.Count == 0) continue; // skips virtual adapters
+            var hasGateway = props.GatewayAddresses.Any(g =>
+            g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
 
-            foreach (var addr in props.UnicastAddresses)
+            foreach (var unicast in props.UnicastAddresses)
             {
-                if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
-                    return addr.Address.ToString();
+                var ip = unicast.Address;
+                if (ip.AddressFamily != AddressFamily.InterNetwork)
+                {
+                    continue;
+                }
+
+                var bytes = ip.GetAddressBytes();
+                if (bytes[0] == 169 && bytes[1] == 254)
+                {
+                    continue; // link-local: no DHCP, nothing can reach it
+                }
+
+                var score = 0;
+                if (hasGateway) score += 4;
+                if (IsPrivate(bytes)) score += 2;
+                if (isPhysical) score += 2;
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) score += 1;
+                if (isVirtual) score -= 10;
+
+                result.Add(new PhoneAddress(ip.ToString(), nic.Name, score));
             }
         }
 
-        return "127.0.0.1";
+        return result.OrderByDescending(a => a.Score).ToList();
     }
+
+    private static bool IsPrivate(byte[] b) =>
+    b[0] == 10
+    || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+    || (b[0] == 192 && b[1] == 168);
 
     public void Dispose()
     {

@@ -354,6 +354,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.playerProfileSaveFailed"] = "Could not save profile:",
         ["msg.playerProfileLoadFailed"] = "Could not read profile:",
         ["msg.playerProfileDeleteFailed"] = "Could not delete profile:",
+        ["msg.phonePortChanged"] = "The phone port was busy, so the server is using port:",
+        ["msg.phoneServerFailed"] = "Phone server failed to start:",
 
         ["nav.phones"] = "Phones",
         ["unit.ms"] = "ms",
@@ -599,6 +601,8 @@ public sealed class Strings : INotifyPropertyChanged
         ["msg.playerProfileSaveFailed"] = "ذخیرهٔ پروفایل ممکن نشد:",
         ["msg.playerProfileLoadFailed"] = "خواندن پروفایل ممکن نشد:",
         ["msg.playerProfileDeleteFailed"] = "حذف پروفایل ممکن نشد:",
+        ["msg.phonePortChanged"] = "پورت گوشی اشغال بود، سرور روی این پورت اجرا شد:",
+        ["msg.phoneServerFailed"] = "سرور گوشی اجرا نشد:",
 
         ["nav.phones"] = "گوشی‌ها",
         ["unit.ms"] = "ms",

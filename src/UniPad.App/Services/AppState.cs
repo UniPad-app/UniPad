@@ -7,6 +7,7 @@ using UniPad.Core.Output;
 using UniPad.Core.Profiles;
 using UniPad.Core.SystemServices;
 using UniPad.Core.Network;
+using System.Globalization;
 
 namespace UniPad.App.Services;
 
@@ -61,7 +62,7 @@ public sealed class AppState : IDisposable
             // Lets FindDevice resolve "keyboard:0" through the same call every joystick uses.
         }
 
-        Phones = new PhoneServer(3000);
+        Phones = new PhoneServer(Config.PhoneServerPort) { PreferredAddress = Config.PhoneServerAddress };
         Phones.PlayerOf = PhonePlayerOf;
         Phones.Released = ReleasePhoneSlot;
         Phones.ClientsChanged += SyncPhoneNames;
@@ -207,12 +208,20 @@ public sealed class AppState : IDisposable
         KeyboardMouse?.Start();
         try
         {
-            Phones.Start();
+        Phones.Start();
+
+        if (Phones.Port != Config.PhoneServerPort)
+        {
+        var port = Phones.Port.ToString(CultureInfo.InvariantCulture);
+        RaiseStatus(new StatusReport(
+        "msg.phonePortChanged", port, $"Port was busy, phone server is using port {port}"));
+        }
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Phone server failed to start");
-            RaiseStatus($"Phone server failed: {ex.Message}");
+        Log.Error(ex, "Phone server failed to start");
+        RaiseStatus(new StatusReport(
+        "msg.phoneServerFailed", ex.Message, $"Phone server failed: {ex.Message}"));
         }
 
         Output.TryInitialiseDriver();
@@ -595,6 +604,7 @@ public sealed class AppState : IDisposable
         Config.ActiveProfile = ActiveProfileName;
         Config.PollRateHz = Input.PollRateHz;
         Config.OutputEnabled = Output.Enabled;
+        Config.PhoneServerAddress = Phones.PreferredAddress;
 
         if (KeyboardMouse is not null)
         {
