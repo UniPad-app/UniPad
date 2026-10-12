@@ -68,8 +68,11 @@ public sealed class PhoneServer : IDisposable
     public string Token { get; private set; } = NewToken();
     public string JoinUrl => $"http://{LocalIp()}:{Port}/?k={Token}";
 
-    /// <summary>Set by AppState: returns the 0-based player slot, or -1 when all are taken.</summary>
-    public Func<PhoneClient, int>? AssignSlot { get; set; }
+    /// <summary>
+    /// Set by AppState: returns the 0-based player that currently uses this phone, or -1 when no
+    /// player has it. Phones are never given a player automatically; the user picks one.
+    /// </summary>
+    public Func<DeviceId, int>? PlayerOf { get; set; }
 
     /// <summary>Set by AppState: called after a phone is kicked so its slot is freed.</summary>
     public Action<PhoneClient>? Released { get; set; }
@@ -87,7 +90,24 @@ public sealed class PhoneServer : IDisposable
     public bool IsRunning { get; private set; }
 
     /// <summary>Snapshot of every known phone (online or waiting for a reconnect), ordered by player slot.</summary>
-    public IReadOnlyList<PhoneClient> Clients => _clients.Values.OrderBy(c => c.Player).ToArray();
+    public IReadOnlyList<PhoneClient> Clients =>
+        _clients.Values.OrderBy(c => c.Player < 0 ? int.MaxValue : c.Player).ThenBy(c => c.Name).ToArray();
+
+    private volatile string _language = "en";
+
+    /// <summary>Language of the phone page ("en" or "fa"); follows the app language.</summary>
+    public string Language => _language;
+
+    /// <summary>Sets the phone page language and pushes it to every connected phone.</summary>
+    public void SetLanguage(string language)
+    {
+        var normalised = language == "fa" ? "fa" : "en";
+        if (normalised == _language) return;
+        _language = normalised;
+
+        var msg = JsonSerializer.Serialize(new { t = "lang", lang = normalised });
+        foreach (var c in _clients.Values) _ = SendAsync(c, msg);
+    }
 
     /// <summary>
     /// Invalidates the current join link and QR code. Phones already connected stay connected,
@@ -108,7 +128,8 @@ public sealed class PhoneServer : IDisposable
 
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(5) });
 
-        _app.MapGet("/", () => Results.Content(Page("controller.html"), "text/html; charset=utf-8"));
+        _app.MapGet("/", () => Results.Content(
+            Page("controller.html").Replace("__UNIPAD_LANG__", _language), "text/html; charset=utf-8"));
 
         _app.MapGet("/admin", (HttpContext c) => Allowed(c, false)
             ? Results.Content(Page("admin.html"), "text/html; charset=utf-8")
@@ -246,6 +267,11 @@ public sealed class PhoneServer : IDisposable
                     case "rtt":
                         client.RttMs = m.GetProperty("ms").GetInt32();
                         break;
+                    case "name":
+                        var newName = m.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                        if (!string.IsNullOrWhiteSpace(newName))
+                            await RenameAsync(client.Key, newName); // also echoes "name" back and raises ClientsChanged
+                        break;
                 }
             }
         }
@@ -325,17 +351,11 @@ public sealed class PhoneServer : IDisposable
             client.LastPacketTicks = Stopwatch.GetTimestamp();
         }
 
-        client.Player = AssignSlot?.Invoke(client) ?? -1;
-        if (client.Player < 0)
-        {
-            client.Socket = null;
-            _clients.TryRemove(key, out _);
-            await RawSendAsync(ws, "{\"t\":\"full\"}");
-            return null;
-        }
+        // No automatic slot: a reconnecting phone finds the player it already had, a new one has none.
+        client.Player = PlayerOf?.Invoke(client.Device.Id) ?? -1;
 
         client.Device.IsConnected = true;
-        await SendAsync(client, JsonSerializer.Serialize(new { t = "welcome", player = client.Player, name = client.Name }));
+        await SendAsync(client, JsonSerializer.Serialize(new { t = "welcome", player = client.Player, name = client.Name, lang = _language }));
         ClientsChanged?.Invoke();
         return client;
     }
@@ -394,6 +414,26 @@ public sealed class PhoneServer : IDisposable
         client.Device.Name = "Phone: " + client.Name;
         await SendAsync(client, JsonSerializer.Serialize(new { t = "name", name = client.Name }));
         ClientsChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Re-reads which player each phone belongs to and tells the phones whose player changed.
+    /// Called by AppState whenever the output is applied.
+    /// </summary>
+    public void RefreshPlayers()
+    {
+        var changed = false;
+        foreach (var client in _clients.Values)
+        {
+            var player = PlayerOf?.Invoke(client.Device.Id) ?? -1;
+            if (player == client.Player) continue;
+
+            client.Player = player;
+            changed = true;
+            _ = SendAsync(client, JsonSerializer.Serialize(new { t = "player", player }));
+        }
+
+        if (changed) ClientsChanged?.Invoke();
     }
 
     private static async Task SendAsync(PhoneClient client, string text)

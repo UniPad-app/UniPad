@@ -1,90 +1,481 @@
-<!doctype html><html lang="fa"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111111">
 <title>UniPad Phone</title>
 <style>
-*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-html,body{margin:0;height:100%;background:#111;color:#eee;font-family:sans-serif;overflow:hidden;touch-action:none}
-#bar{position:fixed;top:0;left:0;right:0;height:28px;display:flex;justify-content:space-between;padding:4px 12px;font-size:14px;background:#000a;z-index:5}
-.b{position:absolute;border-radius:50%;background:#333;border:2px solid #555;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:17px}
-.b.on{background:#3a8f6a}.sq{border-radius:10px}
-.stick{position:absolute;width:150px;height:150px;border-radius:50%;background:#222;border:2px solid #444}
-.knob{position:absolute;left:43px;top:43px;width:60px;height:60px;border-radius:50%;background:#777;pointer-events:none}
-#rot{display:none;position:fixed;inset:0;background:#111;align-items:center;justify-content:center;font-size:22px;z-index:9}
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+/* NEW: text fields must stay selectable or typing breaks on iOS */
+input{-webkit-user-select:text;user-select:text}
+html,body{margin:0;height:100%;background:#111;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;overflow:hidden;touch-action:none}
+button{font-family:inherit}
+#pad{position:fixed;inset:0}
+
+/* ---- controls ---- */
+.ctl{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;touch-action:none}
+.b{border-radius:50%;background:#2b2b2b;border:2px solid #444;color:#cfcfcf;font-weight:700;box-shadow:0 2px 6px #0006}
+.b.sq{border-radius:18%}
+.b.on{background:#3a8f6a;border-color:#4fb889;color:#fff}
+.stick{border-radius:50%;background:#1c1c1c;border:2px solid #3a3a3a}
+.knob{position:absolute;left:50%;top:50%;width:40%;height:40%;border-radius:50%;background:#777;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 2px 8px #0008}
+.stick.on .knob{background:#8d8d8d}
+.fs{border-radius:50%;background:#f7941d;box-shadow:0 2px 8px #0008}
+.fs svg{width:56%;height:56%}
+.ctl.off,.ctl.nofs{display:none}
+
+/* ---- edit mode ---- */
+body.edit #pad{background-image:linear-gradient(#ffffff0a 1px,transparent 1px),linear-gradient(90deg,#ffffff0a 1px,transparent 1px);background-size:5% 10%}
+body.edit .ctl{outline:2px dashed #f7941daa;outline-offset:3px}
+body.edit .ctl.off{display:flex;opacity:.25!important;outline-color:#777}
+body.edit .ctl.lock{outline:2px solid #777}
+body.edit .ctl.lock::after{content:"🔒";position:absolute;top:-10px;right:-10px;font-size:13px}
+body.edit .ctl.sel{outline:2px solid #f7941d}
+/* CHANGED: direction is now set from JS according to the language */
+#edbar{display:none;position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:6;background:#000c;border:1px solid #444;border-radius:12px;padding:8px 10px;gap:8px;align-items:center;font-size:13px;white-space:nowrap}
+body.edit #edbar{display:flex}
+
+/* ---- bottom status bar ---- CHANGED: clip-path removed, shape is drawn by an SVG with rounded corners */
+#barwrap{position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:5}
+#bar{position:relative;isolation:isolate;height:calc(40px + env(safe-area-inset-bottom));padding:0 40px env(safe-area-inset-bottom);min-width:42vw;display:flex;align-items:center;justify-content:space-between;gap:28px;direction:ltr;font-size:14px;color:#ddd}
+#barBg{position:absolute;inset:0;width:100%;height:100%;z-index:-1;overflow:visible;pointer-events:none}
+#barBg path{fill:#0b0b0b;stroke:#4a4a4a;stroke-width:1}
+#gear{background:none;border:0;padding:4px;display:flex;cursor:pointer}
+#gear svg{width:22px;height:22px}
+
+/* ---- settings panel ---- */
+#panel{display:none;position:fixed;inset:0;z-index:20;background:#000b;align-items:center;justify-content:center}
+#panel.show{display:flex}
+.sheet{width:min(640px,94vw);max-height:92%;overflow:auto;touch-action:pan-y;background:#1b1b1b;border:1px solid #333;border-radius:14px;padding:12px 14px;font-size:14px}
+.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hd b{font-size:16px}
+.grp{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.grp .sp{flex:1}
+.btn{border:1px solid #444;background:#2a2a2a;color:#eee;border-radius:9px;padding:8px 12px;font-size:14px}
+.btn.pri{background:#f7941d;border-color:#f7941d;color:#111;font-weight:700}
+.btn.warn{border-color:#a44;color:#f99}
+.btn.mini{padding:4px 8px;font-size:12px}
+.x{background:none;border:0;color:#aaa;font-size:20px;padding:2px 8px}
+/* NEW: name row */
+.nmrow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.nmrow span{min-width:64px;color:#aaa;font-size:13px}
+.nmrow input{flex:1;min-width:0;background:#262626;border:1px solid #444;border-radius:9px;color:#eee;padding:8px 10px;font-size:15px;outline:none}
+.nmrow input:focus{border-color:#f7941d}
+.rs{display:flex;align-items:center;gap:8px}
+.rs span{min-width:64px;color:#aaa;font-size:13px}
+.rs input{flex:1;accent-color:#f7941d;touch-action:pan-x}
+.rs output{min-width:40px;font-size:12px;color:#ccc;direction:ltr}
+.glob{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:12px}
+.sub{color:#f7941d;font-weight:700;margin:6px 0 8px}
+.row{border:1px solid #2e2e2e;border-radius:10px;padding:8px 10px;margin-bottom:8px;background:#202020;transition:border-color .3s}
+.row.hl{border-color:#f7941d}
+.rh{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.rh b{min-width:90px}
+.rh .mini{margin-inline-start:auto}
+.chk{display:flex;align-items:center;gap:4px;font-size:13px}
+.chk input{accent-color:#f7941d;width:17px;height:17px}
+.rb{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+
+#rot{display:none;position:fixed;inset:0;background:#111;align-items:center;justify-content:center;font-size:22px;z-index:30}
 @media (orientation:portrait){#rot{display:flex}}
 </style></head><body>
-<div id="bar"><span id="st">در حال اتصال…</span><span id="pl"></span><span id="ms"></span></div>
-<div id="rot">گوشی را افقی بگیرید</div>
+
 <div id="pad"></div>
+
+<div id="edbar">
+  <span data-i18n="editHint"></span>
+  <button class="btn mini" id="edset" data-i18n="settings"></button>
+  <button class="btn mini pri" id="eddone" data-i18n="done"></button>
+</div>
+
+<!-- CHANGED: SVG background (barBg) added -->
+<div id="barwrap"><div id="bar">
+  <svg id="barBg" preserveAspectRatio="none"><path id="barPath"/></svg>
+  <button id="gear" aria-label="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#ddd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.820l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.830l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  <span id="st"></span><span id="pl"></span><span id="ms"></span>
+</div></div>
+
+<div id="panel"><div class="sheet" id="sheet">
+  <div class="hd"><b data-i18n="title"></b><button class="x" id="pclose">✕</button></div>
+  <!-- NEW: name -->
+  <div class="nmrow">
+    <span data-i18n="name"></span>
+    <input id="nmIn" maxlength="20" autocomplete="off" enterkeyhint="done">
+    <button class="btn pri" id="nmSave" data-i18n="save"></button>
+  </div>
+  <!-- NEW: vibration + (moved) reset / move -->
+  <div class="grp">
+    <label class="chk"><input type="checkbox" id="vibChk"><span data-i18n="vibrate"></span></label>
+    <span class="sp"></span>
+    <button class="btn warn" id="bReset" data-i18n="reset"></button>
+    <button class="btn pri" id="bEdit" data-i18n="move"></button>
+  </div>
+  <div class="glob">
+    <div class="rs"><span data-i18n="gSize"></span><input type="range" id="gSize" min="50" max="160" step="5"><output id="gSizeV"></output></div>
+    <div class="rs"><span data-i18n="gOp"></span><input type="range" id="gOp" min="10" max="100" step="5"><output id="gOpV"></output></div>
+  </div>
+  <div class="sub" data-i18n="per"></div>
+  <div id="list"></div>
+</div></div>
+
+<div id="rot" data-i18n="rotate"></div>
+
 <script>
+// ===== NEW: localisation. The server replaces __UNIPAD_LANG__ with the app language. =====
+const SERVER_LANG='__UNIPAD_LANG__';
+const I18N={
+  en:{title:'Controller Settings',name:'Name',save:'Save',vibrate:'Vibration',move:'Move Buttons',reset:'Reset to Default',
+      gSize:'Global Size',gOp:'Global Opacity',per:'Per-Button Settings',on:'On',lock:'Lock',def:'Default',size:'Size',opacity:'Opacity',
+      editHint:'Drag the buttons · tap one for its settings',settings:'Settings',done:'Done',
+      confirmReset:'Reset every button to the default layout and settings?',rotate:'Turn your phone to landscape',
+      connecting:'Connecting…',connected:'Connected',reconnecting:'Disconnected, reconnecting…',full:'Too many phones are connected',
+      noPlayer:'{name} · waiting for a player',
+      kicked:'You were removed from the game',badtoken:'Invalid QR code, scan it again',askName:'What is your name?',
+      player:'Player {n} - {name}',n_menu:'Menu ☰',n_up:'Up ▲',n_down:'Down ▼',n_left:'Left ◀',n_right:'Right ▶',
+      n_ls:'Left Stick',n_rs:'Right Stick',n_fs:'Fullscreen'},
+  fa:{title:'تنظیمات کنترلر',name:'نام',save:'ذخیره',vibrate:'لرزش',move:'جابه‌جایی دکمه‌ها',reset:'بازگشت به حالت پیش‌فرض',
+      gSize:'اندازه همه',gOp:'شفافیت همه',per:'تنظیمات هر دکمه',on:'فعال',lock:'قفل',def:'پیش‌فرض',size:'اندازه',opacity:'شفافیت',
+      editHint:'دکمه‌ها را بکشید · برای تنظیمات هر دکمه رویش بزنید',settings:'تنظیمات',done:'تمام',
+      confirmReset:'همه‌ی دکمه‌ها به چیدمان و تنظیمات پیش‌فرض برگردند؟',rotate:'گوشی را افقی بگیرید',
+      connecting:'در حال اتصال…',connected:'وصل شد',reconnecting:'قطع شد، اتصال دوباره…',full:'تعداد گوشی‌ها به حداکثر رسیده',
+      noPlayer:'{name} · منتظر انتخاب پلیر',
+      kicked:'از بازی خارج شدید',badtoken:'QR نامعتبر است؛ دوباره اسکن کنید',askName:'اسمت چیه؟',
+      player:'پلیر{n} - {name}',n_menu:'منو ☰',n_up:'بالا ▲',n_down:'پایین ▼',n_left:'چپ ◀',n_right:'راست ▶',
+      n_ls:'استیک چپ',n_rs:'استیک راست',n_fs:'تمام‌صفحه'}
+};
+const okLang=l=>l==='fa'||l==='en';
+let lang=okLang(SERVER_LANG)?SERVER_LANG:(okLang(localStorage.lang)?localStorage.lang:'en');
+const t=k=>(I18N[lang]&&I18N[lang][k])||I18N.en[k]||k;
+
 // Must match PhoneLayout.cs
 const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,Back:6,Start:7,Guide:8,L3:9,R3:10,Up:11,Down:12,Left:13,Right:14};
 const st={b:0,lx:0,ly:0,rx:0,ry:0,lt:0,rt:0}; let dirty=true;
 const pad=document.getElementById('pad');
 const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.min(Math.max(v,a),b);
 
-function place(e,x,y){e.style.left=x+'%';e.style.top=y+'%';e.style.transform='translate(-50%,-50%)';}
-function button(label,key,x,y,size,sq){
-  const e=document.createElement('div');e.className='b'+(sq?' sq':'');e.textContent=label;
-  e.style.width=e.style.height=size+'px';place(e,x,y);pad.appendChild(e);
-  const set=on=>{e.classList.toggle('on',on);
-    if(typeof key==='number') st.b=on?(st.b|(1<<key)):(st.b&~(1<<key)); else st[key]=on?1:0;
-    dirty=true; send(); if(on&&navigator.vibrate) navigator.vibrate(12);};
-  e.onpointerdown=ev=>{e.setPointerCapture(ev.pointerId);set(true);};
-  e.onpointerup=e.onpointercancel=()=>set(false);
+// NEW: connection/identity state is declared up here so the UI can render it at any time.
+let ws, stop=false, retry=500, player=-1, srvName='', stKey='connecting';
+let nm=localStorage.nm||'';
+let vib=localStorage.vib!=='0'; // NEW: vibration on/off, stored separately from the layout
+
+// ---- Default layout (CHANGED: name -> nk = i18n key) ----
+const DEF=[
+  {id:'LT',   label:'LT',    key:'lt',      x:7.3,  y:8.9,  s:14,   sq:1, f:.30},
+  {id:'LB',   label:'LB',    key:BTN.LB,    x:18,   y:8.9,  s:14,   sq:1, f:.30},
+  {id:'Back', label:'Back',  key:BTN.Back,  x:40.2, y:8,    s:12.4,       f:.28},
+  {id:'Guide',label:'☰',     key:BTN.Guide, x:50,   y:8,    s:12.4,       f:.40, nk:'n_menu'},
+  {id:'Start',label:'Start', key:BTN.Start, x:59.6, y:8,    s:12.4,       f:.28},
+  {id:'RB',   label:'RB',    key:BTN.RB,    x:81.8, y:8.9,  s:14,   sq:1, f:.30},
+  {id:'RT',   label:'RT',    key:'rt',      x:92.5, y:8.9,  s:14,   sq:1, f:.30},
+  {id:'L3',   label:'L3',    key:BTN.L3,    x:5.1,  y:49.9, s:10.6,       f:.32},
+  {id:'R3',   label:'R3',    key:BTN.R3,    x:94.8, y:49.9, s:10.6,       f:.32},
+  {id:'Up',   label:'▲',     key:BTN.Up,    x:26.3, y:43.6, s:11.8, sq:1, f:.26, nk:'n_up'},
+  {id:'Left', label:'◀',     key:BTN.Left,  x:20.5, y:55.8, s:11.8, sq:1, f:.26, nk:'n_left'},
+  {id:'Right',label:'▶',     key:BTN.Right, x:31.9, y:55.8, s:11.8, sq:1, f:.26, nk:'n_right'},
+  {id:'Down', label:'▼',     key:BTN.Down,  x:26.3, y:68.1, s:11.8, sq:1, f:.26, nk:'n_down'},
+  {id:'Y',    label:'Y',     key:BTN.Y,     x:72.5, y:42.1, s:14.8,       f:.28},
+  {id:'X',    label:'X',     key:BTN.X,     x:66.4, y:55.6, s:14.8,       f:.28},
+  {id:'B',    label:'B',     key:BTN.B,     x:78.6, y:55.6, s:14.8,       f:.28},
+  {id:'A',    label:'A',     key:BTN.A,     x:72.5, y:68.9, s:14.8,       f:.28},
+  {id:'LS', type:'stick', kx:'lx', ky:'ly', x:8.8,  y:80.8, s:37.6, nk:'n_ls'},
+  {id:'RS', type:'stick', kx:'rx', ky:'ry', x:91.1, y:80.8, s:37.6, nk:'n_rs'},
+  {id:'FS', type:'fs',                      x:50.5, y:82.5, s:11,   nk:'n_fs', noOff:1},
+];
+const ICON_EXPAND='<svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6 3.5 12 9 18M15 6l5.5 6-5.5 6"/></svg>';
+const ICON_SHRINK='<svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6 9 12l-5.5 6M20.5 6 15 12l5.5 6"/></svg>';
+
+// ---- Saved layout (per phone) ----
+const KEY='unipad.layout.v1';
+function fresh(){const items={};for(const d of DEF)items[d.id]={x:d.x,y:d.y,k:1,o:1,lock:false,off:false};return{g:1,go:1,items};}
+function num(v,a,b,def){v=+v;return Number.isFinite(v)?clamp(v,a,b):def;}
+function load(){
+  const f=fresh();
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(s&&s.items){
+      f.g=num(s.g,.5,1.6,1); f.go=num(s.go,.1,1,1);
+      for(const d of DEF){const v=s.items[d.id],it=f.items[d.id]; if(!v)continue;
+        it.x=num(v.x,0,100,d.x); it.y=num(v.y,0,100,d.y); it.k=num(v.k,.5,2,1); it.o=num(v.o,.1,1,1);
+        it.lock=!!v.lock; it.off=d.noOff?false:!!v.off;}
+    }
+  }catch{}
+  return f;
 }
-function stick(x,y,kx,ky){
-  const e=document.createElement('div');e.className='stick';place(e,x,y);
-  const k=document.createElement('div');k.className='knob';e.appendChild(k);pad.appendChild(e);
-  let id=null;
-  const move=ev=>{const r=e.getBoundingClientRect();
-    let dx=(ev.clientX-r.left-r.width/2)/(r.width/2), dy=(ev.clientY-r.top-r.height/2)/(r.height/2);
-    const m=Math.hypot(dx,dy); if(m>1){dx/=m;dy/=m;}
-    st[kx]=+dx.toFixed(3); st[ky]=+dy.toFixed(3);
-    k.style.transform=`translate(${dx*45}px,${dy*45}px)`; dirty=true;};
-  e.onpointerdown=ev=>{id=ev.pointerId;e.setPointerCapture(id);move(ev);};
-  e.onpointermove=ev=>{if(ev.pointerId===id)move(ev);};
-  e.onpointerup=e.onpointercancel=ev=>{if(ev.pointerId!==id)return;id=null;st[kx]=st[ky]=0;k.style.transform='';dirty=true;};
+let L=load();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(L));}catch{}};
+
+// ===== NEW: rounded trapezoid status bar =====
+const barwrap=$('barwrap'), bar=$('bar');
+function drawBar(){
+  const w=bar.offsetWidth, h=bar.offsetHeight, s=22, r=10; // s = slant, r = corner radius
+  if(!w||!h) return;
+  const len=Math.hypot(s,h), ax=s-(s/len)*r, ay=(h/len)*r;
+  const d=`M0 ${h+2} L${ax.toFixed(2)} ${ay.toFixed(2)} Q${s} 0 ${s+r} 0 L${w-s-r} 0 Q${w-s} 0 ${(w-ax).toFixed(2)} ${ay.toFixed(2)} L${w} ${h+2} Z`;
+  $('barBg').setAttribute('viewBox',`0 0 ${w} ${h}`);
+  $('barPath').setAttribute('d',d);
 }
 
-// ---- Layout (x%, y%) ----
-button('LT','lt',6,18,56,1); button('LB',BTN.LB,17,18,56,1);
-button('RB',BTN.RB,83,18,56,1); button('RT','rt',94,18,56,1);
-button('Back',BTN.Back,40,30,50); button('☰',BTN.Guide,50,30,50); button('Start',BTN.Start,60,30,50);
-stick(18,58,'lx','ly'); stick(62,76,'rx','ry');
-button('▲',BTN.Up,38,62,48,1); button('▼',BTN.Down,38,90,48,1);
-button('◀',BTN.Left,31,76,48,1); button('▶',BTN.Right,45,76,48,1);
-button('Y',BTN.Y,84,40,60); button('A',BTN.A,84,74,60);
-button('X',BTN.X,76,57,60); button('B',BTN.B,92,57,60);
-button('L3',BTN.L3,6,90,44); button('R3',BTN.R3,94,90,44);
+// ===== NEW: keep a control on screen and clear of the status bar =====
+const BAR_GAP=10;
+function fit(px,py,r){
+  const W=innerWidth,H=innerHeight;
+  px=clamp(px,r,W-r); py=clamp(py,r,H-r);
+  const b=barwrap.getBoundingClientRect();
+  if(b.width&&px+r>b.left&&px-r<b.right&&py+r>b.top-BAR_GAP) py=Math.max(r,b.top-BAR_GAP-r);
+  return [px,py];
+}
+
+// ---- Build controls ----
+const els={}; let editing=false;
+function press(d,e,on){
+  e.classList.toggle('on',on);
+  if(typeof d.key==='number') st.b=on?(st.b|(1<<d.key)):(st.b&~(1<<d.key)); else st[d.key]=on?1:0;
+  dirty=true; send();
+  if(on&&vib&&navigator.vibrate) navigator.vibrate(12); // CHANGED: respects the vibration setting
+}
+function stickMove(d,e,ev){
+  const r=e.getBoundingClientRect(), k=e.firstChild;
+  let dx=(ev.clientX-r.left-r.width/2)/(r.width/2), dy=(ev.clientY-r.top-r.height/2)/(r.height/2);
+  const m=Math.hypot(dx,dy); if(m>1){dx/=m;dy/=m;}
+  st[d.kx]=+dx.toFixed(3); st[d.ky]=+dy.toFixed(3);
+  const tr=r.width*0.3;
+  k.style.transform=`translate(calc(-50% + ${dx*tr}px),calc(-50% + ${dy*tr}px))`; dirty=true;
+}
+function stickReset(d,e){st[d.kx]=st[d.ky]=0;e.firstChild.style.transform='';e.classList.remove('on');dirty=true;}
+
+function create(d){
+  const e=document.createElement('div'); e._pid=null;
+  if(d.type==='stick'){e.className='ctl stick';const k=document.createElement('div');k.className='knob';e.appendChild(k);}
+  else if(d.type==='fs'){e.className='ctl fs';e.innerHTML=ICON_EXPAND;}
+  else{e.className='ctl b'+(d.sq?' sq':'');e.textContent=d.label;}
+  pad.appendChild(e); els[d.id]=e;
+  let drag=null;
+
+  e.addEventListener('pointerdown',ev=>{
+    ev.preventDefault();
+    e.setPointerCapture(ev.pointerId);
+    if(editing){
+      drag={id:ev.pointerId,sx:ev.clientX,sy:ev.clientY,cx:parseFloat(e.style.left),cy:parseFloat(e.style.top),moved:false};
+      e.classList.add('sel'); return;
+    }
+    if(L.items[d.id].off||e._pid!==null) return;
+    e._pid=ev.pointerId;
+    if(d.type==='stick'){e.classList.add('on');stickMove(d,e,ev);}
+    else if(d.type!=='fs') press(d,e,true);
+  });
+  e.addEventListener('pointermove',ev=>{
+    if(drag&&ev.pointerId===drag.id){
+      const dx=ev.clientX-drag.sx, dy=ev.clientY-drag.sy;
+      if(!drag.moved&&Math.hypot(dx,dy)>6) drag.moved=true;
+      if(!drag.moved||L.items[d.id].lock) return;
+      const [px,py]=fit(drag.cx+dx,drag.cy+dy,e.offsetWidth/2); // CHANGED: uses fit()
+      e.style.left=px+'px'; e.style.top=py+'px';
+      L.items[d.id].x=px/innerWidth*100; L.items[d.id].y=py/innerHeight*100;
+      return;
+    }
+    if(!editing&&d.type==='stick'&&ev.pointerId===e._pid) stickMove(d,e,ev);
+  });
+  const up=ev=>{
+    if(drag&&ev.pointerId===drag.id){
+      e.classList.remove('sel');
+      if(drag.moved) save(); else if(ev.type==='pointerup') openPanel(d.id);
+      drag=null; return;
+    }
+    if(ev.pointerId!==e._pid) return;
+    e._pid=null;
+    if(d.type==='stick') stickReset(d,e);
+    else if(d.type==='fs'){ if(ev.type==='pointerup') toggleFs(); }
+    else press(d,e,false);
+  };
+  e.addEventListener('pointerup',up); e.addEventListener('pointercancel',up);
+}
+DEF.forEach(create);
+
+function applyLayout(){
+  const W=innerWidth,H=innerHeight,u=H/100;
+  for(const d of DEF){
+    const it=L.items[d.id], e=els[d.id];
+    const px=Math.round(d.s*it.k*L.g*u), r=px/2;
+    e.style.width=e.style.height=px+'px';
+    if(d.f) e.style.fontSize=Math.max(9,Math.round(px*d.f))+'px';
+    const [x,y]=fit(it.x/100*W,it.y/100*H,r); // CHANGED: never under the status bar
+    e.style.left=x+'px'; e.style.top=y+'px';
+    e.style.opacity=clamp(it.o*L.go,.05,1);
+    e.classList.toggle('off',it.off);
+    e.classList.toggle('lock',it.lock);
+  }
+}
+
+function releaseAll(){
+  st.b=0; st.lx=st.ly=st.rx=st.ry=st.lt=st.rt=0; dirty=true;
+  for(const id in els){const e=els[id]; e._pid=null; e.classList.remove('on','sel'); if(e.firstChild&&e.firstChild.className==='knob') e.firstChild.style.transform='';}
+}
+
+// ---- Fullscreen ----
+const de=document.documentElement;
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+const fsSupported=!!(de.requestFullscreen||de.webkitRequestFullscreen);
+if(!fsSupported) els.FS.classList.add('nofs');
+async function toggleFs(){
+  try{
+    if(fsEl()){ await (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    else{
+      await (de.requestFullscreen?de.requestFullscreen({navigationUI:'hide'}):de.webkitRequestFullscreen());
+      try{ await screen.orientation.lock('landscape'); }catch{}
+    }
+  }catch{}
+}
+function onFsChange(){ els.FS.innerHTML=fsEl()?ICON_SHRINK:ICON_EXPAND; setTimeout(applyLayout,50); }
+document.addEventListener('fullscreenchange',onFsChange);
+document.addEventListener('webkitfullscreenchange',onFsChange);
+
+// ---- Settings panel ----
+const panel=$('panel'), list=$('list');
+function buildPanel(){
+  list.innerHTML='';
+  for(const d of DEF){
+    const row=document.createElement('div'); row.className='row'; row.id='row-'+d.id;
+    row.innerHTML=`<div class="rh"><b>${d.nk?t(d.nk):d.label}</b>
+      <label class="chk"><input type="checkbox" data-f="en"${d.noOff?' disabled':''}><span>${t('on')}</span></label>
+      <label class="chk"><input type="checkbox" data-f="lock"><span>${t('lock')}</span></label>
+      <button class="btn mini" data-f="reset">${t('def')}</button></div>
+      <div class="rb">
+        <div class="rs"><span>${t('size')}</span><input type="range" min="50" max="200" step="5" data-f="k"><output></output></div>
+        <div class="rs"><span>${t('opacity')}</span><input type="range" min="10" max="100" step="5" data-f="o"><output></output></div>
+      </div>`;
+    const onEdit=ev=>{
+      const tg=ev.target, f=tg.dataset.f, it=L.items[d.id]; if(!f) return;
+      if(f==='en') it.off=!tg.checked;
+      else if(f==='lock') it.lock=tg.checked;
+      else if(f==='k') it.k=tg.value/100;
+      else if(f==='o') it.o=tg.value/100;
+      applyLayout(); syncRow(d.id); save();
+    };
+    row.addEventListener('input',onEdit); row.addEventListener('change',onEdit);
+    row.querySelector('[data-f=reset]').addEventListener('click',()=>{
+      L.items[d.id]={x:d.x,y:d.y,k:1,o:1,lock:false,off:false}; applyLayout(); syncRow(d.id); save();
+    });
+    list.appendChild(row);
+  }
+}
+function syncRow(id){
+  const row=$('row-'+id), it=L.items[id];
+  row.querySelector('[data-f=en]').checked=!it.off;
+  row.querySelector('[data-f=lock]').checked=it.lock;
+  const k=row.querySelector('[data-f=k]'), o=row.querySelector('[data-f=o]');
+  k.value=Math.round(it.k*100); k.nextElementSibling.textContent=k.value+'%';
+  o.value=Math.round(it.o*100); o.nextElementSibling.textContent=o.value+'%';
+}
+function syncPanel(){
+  $('gSize').value=Math.round(L.g*100); $('gSizeV').textContent=$('gSize').value+'%';
+  $('gOp').value=Math.round(L.go*100);  $('gOpV').textContent=$('gOp').value+'%';
+  $('vibChk').checked=vib;                                   // NEW
+  if(document.activeElement!==$('nmIn')) $('nmIn').value=nm; // NEW
+  for(const d of DEF) syncRow(d.id);
+}
+function openPanel(id){
+  releaseAll(); syncPanel(); panel.classList.add('show');
+  list.querySelectorAll('.hl').forEach(r=>r.classList.remove('hl'));
+  if(id){const r=$('row-'+id); r.classList.add('hl'); r.scrollIntoView({block:'center'});}
+  else $('sheet').scrollTop=0;
+}
+const closePanel=()=>{$('nmIn').blur();panel.classList.remove('show');};
+function setEdit(on){
+  editing=on; releaseAll(); closePanel();
+  document.body.classList.toggle('edit',on);
+  if(!on) save();
+}
+
+$('gear').onclick=()=>openPanel();
+$('pclose').onclick=closePanel;
+panel.addEventListener('pointerdown',ev=>{if(ev.target===panel)closePanel();});
+$('bEdit').onclick=()=>setEdit(true);
+$('edset').onclick=()=>openPanel();
+$('eddone').onclick=()=>setEdit(false);
+$('bReset').onclick=()=>{
+  if(!confirm(t('confirmReset'))) return;
+  L=fresh(); save(); applyLayout(); syncPanel();
+};
+$('gSize').oninput=e=>{L.g=e.target.value/100;$('gSizeV').textContent=e.target.value+'%';applyLayout();save();};
+$('gOp').oninput=e=>{L.go=e.target.value/100;$('gOpV').textContent=e.target.value+'%';applyLayout();save();};
+
+// ===== NEW: vibration toggle =====
+if(!navigator.vibrate) $('vibChk').disabled=true; // e.g. iPhone
+$('vibChk').onchange=e=>{vib=e.target.checked;localStorage.vib=vib?'1':'0';if(vib&&navigator.vibrate)navigator.vibrate(20);};
+
+// ===== NEW: rename from the phone =====
+function saveName(){
+  const v=$('nmIn').value.replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,20);
+  if(!v){$('nmIn').value=nm;return;}
+  nm=v; localStorage.nm=v; localStorage.nmPending='1'; // cleared when the server confirms
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({t:'name',name:v}));
+  $('nmIn').blur();
+  const b=$('nmSave'); b.textContent='✓'; setTimeout(()=>b.textContent=t('save'),1200);
+}
+$('nmSave').onclick=saveName;
+$('nmIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveName();}});
+
+// ===== NEW: status / player label rendered from keys so they follow the language =====
+function setSt(k){stKey=k;$('st').textContent=t(k);}
+function renderPlayer(){
+  if(!srvName){$('pl').textContent='';return;}
+  $('pl').textContent=(player>=0?t('player').replace('{n}',player+1):t('noPlayer')).replace('{name}',srvName);
+}
+function applyLang(){
+  const dir=lang==='fa'?'rtl':'ltr';
+  document.documentElement.lang=lang;
+  $('sheet').dir=dir; $('edbar').dir=dir;
+  document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=t(e.dataset.i18n));
+  buildPanel(); syncPanel(); setSt(stKey); renderPlayer();
+}
+function setLang(l){ if(!okLang(l)||l===lang) return; lang=l; localStorage.lang=l; applyLang(); }
+
+applyLang();
+applyLayout();
+drawBar();
+new ResizeObserver(()=>{drawBar();applyLayout();}).observe(bar); // NEW
+addEventListener('resize',applyLayout);
+addEventListener('orientationchange',()=>setTimeout(applyLayout,200));
+document.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ---- Identity ----
 const q=new URLSearchParams(location.search);
 const token=q.get('k')||localStorage.k||''; localStorage.k=token;
 let cid=localStorage.cid;
 if(!cid){cid=[...crypto.getRandomValues(new Uint8Array(8))].map(v=>v.toString(16).padStart(2,'0')).join('');localStorage.cid=cid;}
-let nm=localStorage.nm; if(!nm){nm=prompt('اسمت چیه؟')||'Player';localStorage.nm=nm;}
-let player=-1;
+if(!nm){nm=(prompt(t('askName'))||'Player').trim().slice(0,20)||'Player';localStorage.nm=nm;}
 
 // ---- Connection with auto-reconnect ----
-let ws, stop=false, retry=500;
 function connect(){
   ws=new WebSocket(`ws://${location.host}/ws`);
   ws.onopen=()=>{retry=500;ws.send(JSON.stringify({t:'hello',id:cid,name:nm,k:token}));};
   ws.onmessage=ev=>{const m=JSON.parse(ev.data);
-    if(m.t==='welcome'){player=m.player;$('st').textContent='وصل شد';$('pl').textContent=`پلیر ${player+1} — ${m.name}`;dirty=true;}
-    else if(m.t==='name'){$('pl').textContent=`پلیر ${player+1} — ${m.name}`;}
+    if(m.t==='welcome'){
+      player=m.player; srvName=m.name;
+      if(m.lang) setLang(m.lang);
+      // CHANGED: a rename made while offline is pushed now; otherwise the PC's name wins.
+      if(localStorage.nmPending==='1'&&nm!==m.name) ws.send(JSON.stringify({t:'name',name:nm}));
+      else{nm=m.name;localStorage.nm=nm;localStorage.removeItem('nmPending');}
+      setSt('connected'); renderPlayer(); syncPanel(); dirty=true;
+    }
+    else if(m.t==='name'){ // CHANGED: sent after any rename, from the phone or from the PC
+      srvName=nm=m.name; localStorage.nm=nm; localStorage.removeItem('nmPending');
+      renderPlayer(); if(document.activeElement!==$('nmIn')) $('nmIn').value=nm;
+    }
+    else if(m.t==='lang'){setLang(m.lang);} // NEW
+    else if(m.t==='player'){ // NEW: the PC moved this phone to another player (or released it)
+      player=m.player; renderPlayer();
+      if(vib&&navigator.vibrate) navigator.vibrate(player>=0?[30,60,30]:60);
+    }
     else if(m.t==='pong'){const ms=Math.round(performance.now()-m.ts);$('ms').textContent=ms+' ms';ws.send(JSON.stringify({t:'rtt',ms}));}
-    else if(m.t==='full'){stop=true;$('st').textContent='همه‌ی جاها پر است';}
-    else if(m.t==='kicked'){stop=true;$('st').textContent='از بازی خارج شدید';}
-    else if(m.t==='badtoken'){stop=true;$('st').textContent='QR نامعتبر است؛ دوباره اسکن کنید';}};
-  ws.onclose=()=>{if(stop)return;$('st').textContent='قطع شد، اتصال دوباره…';setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
+    else if(m.t==='full'){stop=true;setSt('full');}
+    else if(m.t==='kicked'){stop=true;setSt('kicked');}
+    else if(m.t==='badtoken'){stop=true;setSt('badtoken');}};
+  ws.onclose=()=>{if(stop)return;setSt('reconnecting');setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
 }
 connect();
 
-// Buttons send the instant they change. On top of that a steady ~60 Hz stream runs while the
-// socket is open: it keeps the phone's Wi-Fi out of power-save, which otherwise batches packets
-// and adds 100-300 ms of lag.
 function send(){
   if(!ws||ws.readyState!==1)return;
   if(ws.bufferedAmount>1024)return;
@@ -92,9 +483,5 @@ function send(){
 }
 setInterval(send,16);
 setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping',ts:performance.now()}));},2000);
-
-// Release everything when the app goes to background.
-document.addEventListener('visibilitychange',()=>{if(document.hidden){st.b=0;st.lx=st.ly=st.rx=st.ry=st.lt=st.rt=0;dirty=true;}});
-// Fullscreen on first touch (Android).
-document.addEventListener('pointerdown',()=>{document.documentElement.requestFullscreen?.().catch(()=>{});},{once:true});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAll();});
 </script></body></html>

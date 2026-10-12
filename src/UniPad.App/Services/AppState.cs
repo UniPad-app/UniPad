@@ -62,9 +62,13 @@ public sealed class AppState : IDisposable
         }
 
         Phones = new PhoneServer(3000);
-        Phones.AssignSlot = AssignPhoneSlot;
+        Phones.PlayerOf = PhonePlayerOf;
         Phones.Released = ReleasePhoneSlot;
-        Phones.ClientsChanged += RaiseDevicesChanged;
+        Phones.ClientsChanged += SyncPhoneNames;
+        // A phone coming online or leaving changes which pads can exist, so the output is
+        // re-applied (unforced, so it is free when nothing changed). QueueApply also raises
+        // DevicesChanged, which puts the phone into every player's device picker.
+        Phones.ClientsChanged += QueueApply;
 
         // Phones resolve to their own device, everything else synthetic to the keyboard.
         Input.SyntheticResolver = id => id.IsPhone ? Phones.Find(id) : KeyboardMouse?.Device;
@@ -142,6 +146,12 @@ public sealed class AppState : IDisposable
     /// the UI thread.
     /// </summary>
     public event Action? DevicesChanged;
+
+    /// <summary>
+    /// Raised on the UI thread with the indices of players whose phone was moved to another
+    /// player, so their tabs can re-read the mapping.
+    /// </summary>
+    public event Action<IReadOnlyList<int>>? PlayersReassigned;
 
     /// <summary>
     /// Raised when a transient status message should be shown. Always raised on the UI thread.
@@ -481,6 +491,9 @@ public sealed class AppState : IDisposable
     {
         lock (_applyGate)
         {
+            // Every path that changes a player's device or enabled state ends up here.
+            Phones.RefreshPlayers();
+
             var signature = ComposeOutputSignature();
 
             if (!force && string.Equals(signature, _appliedSignature, StringComparison.Ordinal))
@@ -704,47 +717,70 @@ public sealed class AppState : IDisposable
         RaiseStatus(new StatusReport(key, detail ?? string.Empty, fallback ?? key));
 
     /// <summary>
-    /// Gives a phone a player slot: its previous slot if it had one (reconnect), otherwise the
-    /// first free one. Called on a network thread.
+    /// The player that uses a phone: the first enabled player whose device is that phone, or -1.
+    /// Called from network and worker threads.
     /// </summary>
-    private int AssignPhoneSlot(PhoneClient phone)
+    private int PhonePlayerOf(DeviceId id)
     {
-        var id = phone.Device.Id;
-        PlayerMapping? player;
+        lock (_players)
+        {
+            return _players.FirstOrDefault(p => p.Enabled && p.Device == id)?.Index ?? -1;
+        }
+    }
+
+    /// <summary>
+    /// Gives a phone to a player, chosen by the user from the device picker. A phone drives one
+    /// player only, so any other player holding it is released. Called on the UI thread.
+    /// </summary>
+    public void AssignPhone(PlayerMapping target, DeviceId phone)
+    {
+        var released = new List<int>();
 
         lock (_players)
         {
-            player = _players.FirstOrDefault(p => p.Device == id)
-                     ?? _players.FirstOrDefault(p => !p.Enabled && p.Device is null)
-                     ?? _players.FirstOrDefault(p => !p.Enabled)
-                     // Last resort: a slot still held by a phone that is not online right now.
-                     ?? _players.FirstOrDefault(p => p.Device is { IsPhone: true }
-                                                     && Phones.Find(p.Device) is not { IsConnected: true });
-
-            if (player is null)
+            foreach (var other in _players)
             {
-                return -1;
-            }
+                if (other.Index == target.Index || other.Device != phone) continue;
 
-            using (Output.BeginMappingEdit(player.Index))
-            {
-                // Keep custom bindings on reconnect; write the standard layout otherwise.
-                if (player.Device != id || !player.HasAnyBinding)
+                using (Output.BeginMappingEdit(other.Index))
                 {
-                    PhoneLayout.ApplyTo(player, id);
+                    other.ClearBindings();
+                    other.Enabled = false;
+                    other.Device = null;
+                    other.DeviceName = null;
                 }
 
-                player.Device = id;
-                player.DeviceName = phone.Device.Name;
-                player.Enabled = true;
-                player.OutputType = player.Index < OutputManager.XInputSlotCount
-                    ? VirtualPadType.Xbox360
-                    : VirtualPadType.DualShock4;
+                released.Add(other.Index);
+            }
+
+            using (Output.BeginMappingEdit(target.Index))
+            {
+                if (target.Device is { IsPhone: true } && target.HasAnyBinding)
+                {
+                    // Phone to phone: same layout, so the user's custom bindings are kept.
+                    RemapPlayerDevice(target, phone);
+                }
+                else
+                {
+                    // A controller's raw indices mean nothing on a phone: write the phone layout.
+                    PhoneLayout.ApplyTo(target, phone);
+                    target.Device = phone;
+                }
+
+                target.DeviceName = Phones.Find(phone)?.Name;
+                target.Enabled = true;
+                if (target.Index >= OutputManager.XInputSlotCount)
+                {
+                    target.OutputType = VirtualPadType.DualShock4;
+                }
             }
         }
 
-        QueueApply();
-        return player.Index;
+        var handler = PlayersReassigned;
+        if (released.Count > 0 && handler is not null)
+        {
+            Dispatcher.UIThread.Post(() => handler.Invoke(released));
+        }
     }
 
     /// <summary>Frees the slot of a kicked phone.</summary>
@@ -768,6 +804,19 @@ public sealed class AppState : IDisposable
         }
 
         QueueApply();
+    }
+
+    /// <summary>Keeps the player's device caption in step with a phone rename.</summary>
+    private void SyncPhoneNames()
+    {
+        lock (_players)
+        {
+            foreach (var phone in Phones.Clients)
+            {
+                var player = _players.FirstOrDefault(p => p.Device == phone.Device.Id);
+                if (player is not null) player.DeviceName = phone.Device.Name;
+            }
+        }
     }
 
     /// <summary>Applies the output off-thread, serialised with hot-plug handling.</summary>

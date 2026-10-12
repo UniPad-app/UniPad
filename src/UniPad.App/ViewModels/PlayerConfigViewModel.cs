@@ -599,6 +599,16 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             return;
         }
 
+        // A phone is handed over as a whole: phone layout, player enabled, and released from
+        // whichever player had it before.
+        if (newDevice is { IsPhone: true })
+        {
+            _state.AssignPhone(Mapping, newDevice);
+            PullFromMapping();
+            RequestApplyOutput();
+            return;
+        }
+
         // Re-point every existing binding at the new device so the user does not have to redo them.
         var oldDevice = Mapping.Device;
         Mapping.Device = newDevice;

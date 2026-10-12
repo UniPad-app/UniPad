@@ -14,7 +14,7 @@ async function load(){
   qr.src=s.qr; url.textContent=s.url; rows.innerHTML='';
   for(const c of s.clients){
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${c.player+1}</td><td></td><td>${c.online?'آنلاین':'قطع'}</td><td>${c.rtt} ms</td><td><button>تغییر نام</button><button>اخراج</button></td>`;
+    tr.innerHTML=`<td>${c.player>=0?c.player+1:'-'}</td><td></td><td>${c.online?'آنلاین':'قطع'}</td><td>${c.rtt} ms</td><td><button>تغییر نام</button><button>اخراج</button></td>`;
     tr.children[1].textContent=c.name;
     const [r,k]=tr.querySelectorAll('button');
     r.onclick=()=>{const n=prompt('نام جدید',c.name);if(n)post(`/admin/rename/${c.id}?name=${encodeURIComponent(n)}`);};

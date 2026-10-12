@@ -95,6 +95,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         state.DevicesChanged += OnDevicesChanged;
+        state.PlayersReassigned += OnPlayersReassigned;
         state.StatusMessage += OnStatusMessage;
         state.StatusReported += OnStatusReported;
 
@@ -196,6 +197,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Advanced.RefreshDriverStatus();
         Phones.Refresh();
         RefreshBanners();
+        UpdateConnectedSummary();
+    }
+
+    /// <summary>A phone moved to another player: the tabs it left must show it is gone.</summary>
+    private void OnPlayersReassigned(IReadOnlyList<int> indices)
+    {
+        foreach (var index in indices)
+        {
+            if ((uint)index >= (uint)Players.Count) continue;
+            Players[index].RefreshDevices();
+            Players[index].PullFromMapping();
+        }
+
         UpdateConnectedSummary();
     }
 
