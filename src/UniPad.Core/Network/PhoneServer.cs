@@ -226,7 +226,7 @@ public sealed class PhoneServer : IDisposable
             {
                 url = JoinUrl,
                 qr = "data:image/png;base64," + Convert.ToBase64String(png),
-                clients = _clients.Values.OrderBy(x => x.Player).Select(x => new
+                clients = Clients.Select(x => new
                 {
                     id = x.Key,
                     name = x.Name,
@@ -389,8 +389,17 @@ public sealed class PhoneServer : IDisposable
         var key = DeviceId.PhonePrefix + cid;
         if (!_clients.ContainsKey(key) && _clients.Count >= MaxClients)
         {
-            await RawSendAsync(ws, "{\"t\":\"full\"}");
-            return null;
+            // Make room by forgetting an offline phone that no player uses.
+            var stale = _clients.Values.FirstOrDefault(c =>
+                !c.Device.IsConnected && (PlayerOf?.Invoke(c.Device.Id) ?? -1) < 0);
+
+            if (stale is null || !_clients.TryRemove(stale.Key, out _))
+            {
+                await RawSendAsync(ws, "{\"t\":\"full\"}");
+                return null;
+            }
+
+            ClientsChanged?.Invoke();
         }
 
         var isNew = false;

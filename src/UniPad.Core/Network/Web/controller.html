@@ -469,10 +469,10 @@ function connect(){
       if(vib&&navigator.vibrate) navigator.vibrate(player>=0?[30,60,30]:60);
     }
     else if(m.t==='pong'){const ms=Math.round(performance.now()-m.ts);$('ms').textContent=ms+' ms';ws.send(JSON.stringify({t:'rtt',ms}));}
-    else if(m.t==='full'){stop=true;setSt('full');}
-    else if(m.t==='kicked'){stop=true;setSt('kicked');}
-    else if(m.t==='badtoken'){stop=true;setSt('badtoken');}};
-  ws.onclose=()=>{if(stop)return;setSt('reconnecting');setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
+    else if(m.t==='full'){stop=true;setSt('full');$('ms').textContent='';}
+    else if(m.t==='kicked'){stop=true;player=-1;srvName='';releaseAll();renderPlayer();$('ms').textContent='';setSt('kicked');}
+    else if(m.t==='badtoken'){stop=true;setSt('badtoken');$('ms').textContent='';}};
+  ws.onclose=()=>{if(stop)return;setSt('reconnecting');$('ms').textContent='';setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
 }
 connect();
 

@@ -621,8 +621,12 @@ public sealed class AppState : IDisposable
     {
         var loaded = Store.LoadProfile(name);
 
-        _players.Clear();
-        _players.AddRange(loaded);
+        lock (_players)
+        {
+            _players.Clear();
+            _players.AddRange(loaded);
+        }
+
         ActiveProfileName = name;
         Config.ActiveProfile = name;
 
@@ -638,10 +642,13 @@ public sealed class AppState : IDisposable
     /// <summary>Replaces one player's mapping, typically after a cancellable edit session.</summary>
     public void UpdatePlayer(PlayerMapping updated)
     {
-        var index = _players.FindIndex(p => p.Index == updated.Index);
-        if (index >= 0)
+        lock (_players)
         {
-            _players[index] = updated;
+            var index = _players.FindIndex(p => p.Index == updated.Index);
+            if (index >= 0)
+            {
+                _players[index] = updated;
+            }
         }
     }
 
@@ -847,9 +854,22 @@ public sealed class AppState : IDisposable
     /// <summary>Applies the output off-thread, serialised with hot-plug handling.</summary>
     private void QueueApply()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _ = Task.Run(async () =>
         {
-            await _hotplugGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await _hotplugGate.WaitAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return; // shutting down
+            }
+
             try
             {
                 if (!_disposed)
@@ -863,10 +883,13 @@ public sealed class AppState : IDisposable
             }
             finally
             {
-                _hotplugGate.Release();
+                try { _hotplugGate.Release(); } catch (ObjectDisposedException) { /* shutting down */ }
             }
 
-            RaiseDevicesChanged();
+            if (!_disposed)
+            {
+                RaiseDevicesChanged();
+            }
         });
     }
 
@@ -894,6 +917,9 @@ public sealed class AppState : IDisposable
 
         // Order matters: stop cloaking before releasing devices so nothing stays hidden.
         HidHide.DisableCloaking();
+        // Closing the sockets raises ClientsChanged; nothing may be queued while shutting down.
+        Phones.ClientsChanged -= QueueApply;
+        Phones.ClientsChanged -= SyncPhoneNames;
         Phones.Dispose();
         Output.Dispose();
         KeyboardMouse?.Dispose();

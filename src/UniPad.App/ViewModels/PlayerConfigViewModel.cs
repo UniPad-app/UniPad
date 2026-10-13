@@ -617,6 +617,38 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
         // Re-point every existing binding at the new device so the user does not have to redo them.
         var oldDevice = Mapping.Device;
+
+        // Leaving a phone: its bindings use phone indices, which mean nothing on any other device,
+        // and left in place they would keep the phone driving this pad.
+        if (oldDevice is { IsPhone: true })
+        {
+            var device = newDevice is null ? null : _state.Input.FindDevice(newDevice);
+
+            EditMapping(() =>
+            {
+                Mapping.ClearBindings();
+                Mapping.RestoreDefaults();   // the phone layout set its own dead zones
+                Mapping.ProfileName = null;
+                Mapping.Device = newDevice;
+
+                if (device is not null)
+                {
+                    AutoMapper.Apply(Mapping, device);
+                }
+
+                Mapping.DeviceName = device?.Name;
+            });
+
+            if (newDevice is null)
+            {
+                Mapping.Enabled = false;
+            }
+
+            PullFromMapping();
+            RequestApplyOutput();
+            return;
+        }
+
         Mapping.Device = newDevice;
         Mapping.DeviceName = newDevice is null ? null : _state.Input.FindDevice(newDevice)?.Name;
 
