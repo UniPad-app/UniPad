@@ -149,7 +149,7 @@ const t=k=>(I18N[lang]&&I18N[lang][k])||I18N.en[k]||k;
 
 // Must match PhoneLayout.cs
 const BTN={A:0,B:1,X:2,Y:3,LB:4,RB:5,Back:6,Start:7,Guide:8,L3:9,R3:10,Up:11,Down:12,Left:13,Right:14};
-const st={b:0,lx:0,ly:0,rx:0,ry:0,lt:0,rt:0}; let dirty=true;
+const st={b:0,lx:0,ly:0,rx:0,ry:0,lt:0,rt:0};
 const pad=document.getElementById('pad');
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.min(Math.max(v,a),b);
@@ -231,7 +231,7 @@ const els={}; let editing=false;
 function press(d,e,on){
   e.classList.toggle('on',on);
   if(typeof d.key==='number') st.b=on?(st.b|(1<<d.key)):(st.b&~(1<<d.key)); else st[d.key]=on?1:0;
-  dirty=true; send();
+  send();
   if(on&&vib&&navigator.vibrate) navigator.vibrate(12); // CHANGED: respects the vibration setting
 }
 function stickMove(d,e,ev){
@@ -240,9 +240,9 @@ function stickMove(d,e,ev){
   const m=Math.hypot(dx,dy); if(m>1){dx/=m;dy/=m;}
   st[d.kx]=+dx.toFixed(3); st[d.ky]=+dy.toFixed(3);
   const tr=r.width*0.3;
-  k.style.transform=`translate(calc(-50% + ${dx*tr}px),calc(-50% + ${dy*tr}px))`; dirty=true;
+  k.style.transform=`translate(calc(-50% + ${dx*tr}px),calc(-50% + ${dy*tr}px))`;
 }
-function stickReset(d,e){st[d.kx]=st[d.ky]=0;e.firstChild.style.transform='';e.classList.remove('on');dirty=true;}
+function stickReset(d,e){st[d.kx]=st[d.ky]=0;e.firstChild.style.transform='';e.classList.remove('on');}
 
 function create(d){
   const e=document.createElement('div'); e._pid=null;
@@ -308,7 +308,7 @@ function applyLayout(){
 }
 
 function releaseAll(){
-  st.b=0; st.lx=st.ly=st.rx=st.ry=st.lt=st.rt=0; dirty=true;
+  st.b=0; st.lx=st.ly=st.rx=st.ry=st.lt=st.rt=0;
   for(const id in els){const e=els[id]; e._pid=null; e.classList.remove('on','sel'); if(e.firstChild&&e.firstChild.className==='knob') e.firstChild.style.transform='';}
 }
 
@@ -457,7 +457,7 @@ function connect(){
       // CHANGED: a rename made while offline is pushed now; otherwise the PC's name wins.
       if(localStorage.nmPending==='1'&&nm!==m.name) ws.send(JSON.stringify({t:'name',name:nm}));
       else{nm=m.name;localStorage.nm=nm;localStorage.removeItem('nmPending');}
-      setSt('connected'); renderPlayer(); syncPanel(); dirty=true;
+      setSt('connected'); renderPlayer(); syncPanel();
     }
     else if(m.t==='name'){ // CHANGED: sent after any rename, from the phone or from the PC
       srvName=nm=m.name; localStorage.nm=nm; localStorage.removeItem('nmPending');
@@ -479,8 +479,10 @@ connect();
 function send(){
   if(!ws||ws.readyState!==1)return;
   if(ws.bufferedAmount>1024)return;
-  ws.send(JSON.stringify({t:'s',...st}));dirty=false;
+  ws.send(JSON.stringify({t:'s',...st}));
 }
+// Sent every 16 ms regardless of changes: the server marks a phone stale after 500 ms without
+// a state packet, so this interval is also the keepalive - never gate it on "anything changed".
 setInterval(send,16);
 setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping',ts:performance.now()}));},2000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAll();});
