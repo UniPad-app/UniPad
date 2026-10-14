@@ -66,6 +66,11 @@ public sealed class PhoneServer : IDisposable
 
     private readonly ConcurrentDictionary<string, PhoneClient> _clients = new();
     private readonly Dictionary<string, string> _pages = new();
+    private readonly object _admitLock = new();
+    private static readonly TimeSpan AddressCacheTime = TimeSpan.FromSeconds(30);
+    private readonly object _addressLock = new();
+    private IReadOnlyList<PhoneAddress>? _addresses;
+    private DateTime _addressesAt;
     private WebApplication? _app;
 
     /// <summary>Port used when the configuration does not say otherwise.</summary>
@@ -95,18 +100,37 @@ public sealed class PhoneServer : IDisposable
     /// <summary>Address chosen by the user for the QR code, or null for automatic.</summary>
     public string? PreferredAddress { get; set; }
 
-    /// <summary>The address put into the join URL: the user's choice when still valid, else the best guess.</summary>
+    private IReadOnlyList<PhoneAddress> CachedAddresses()
+    {
+        lock (_addressLock)
+        {
+            if (_addresses is null || DateTime.UtcNow - _addressesAt > AddressCacheTime)
+            {
+                _addresses = AvailableAddresses();
+                _addressesAt = DateTime.UtcNow;
+            }
+
+            return _addresses;
+        }
+    }
+
+    /// <summary>Forces the next read to scan the adapters again (call when the address list is opened).</summary>
+    public void RefreshAddresses()
+    {
+        lock (_addressLock) _addresses = null;
+    }
+
     public string CurrentAddress
     {
-    get
-    {
-        var all = AvailableAddresses();
-        if (PreferredAddress is not null && all.Any(a => a.Address == PreferredAddress))
+        get
         {
-            return PreferredAddress;
-        }
+            var all = CachedAddresses();
+            if (PreferredAddress is not null && all.Any(a => a.Address == PreferredAddress))
+            {
+                return PreferredAddress;
+            }
 
-        return all.Count > 0 ? all[0].Address : "127.0.0.1";
+            return all.Count > 0 ? all[0].Address : "127.0.0.1";
         }
     }
     
@@ -305,6 +329,9 @@ public sealed class PhoneServer : IDisposable
         }
     }
 
+    /// <summary>Largest message accepted from a phone; anything bigger is discarded.</summary>
+    private const int MaxMessageBytes = 4096;
+
     private async Task HandleSocketAsync(HttpContext ctx)
     {
         if (!ctx.WebSockets.IsWebSocketRequest)
@@ -315,6 +342,8 @@ public sealed class PhoneServer : IDisposable
 
         using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
         var buffer = new byte[1024];
+        using var message = new MemoryStream();
+        var oversized = false;
         PhoneClient? client = null;
 
         try
@@ -323,37 +352,81 @@ public sealed class PhoneServer : IDisposable
             {
                 var result = await ws.ReceiveAsync(buffer, CancellationToken.None);
                 if (result.MessageType == WebSocketMessageType.Close) break;
-                if (!result.EndOfMessage || result.Count == 0) continue; // oversized: ignore
 
-                using var doc = JsonDocument.Parse(buffer.AsMemory(0, result.Count));
-                var m = doc.RootElement;
-                var type = m.TryGetProperty("t", out var t) ? t.GetString() : null;
-
-                if (client is null)
+                // Collect fragments until the whole message has arrived.
+                if (!oversized && result.Count > 0)
                 {
-                    if (type != "hello") continue;
-                    client = await HelloAsync(ws, m);
-                    if (client is null) return;
+                    if (message.Length + result.Count > MaxMessageBytes)
+                    {
+                        oversized = true;
+                        message.SetLength(0);
+                    }
+                    else
+                    {
+                        message.Write(buffer, 0, result.Count);
+                    }
+                }
+
+                if (!result.EndOfMessage) continue;
+
+                var tooBig = oversized;
+                oversized = false;
+                var length = (int)message.Length;
+                if (tooBig || length == 0)
+                {
+                    message.SetLength(0);
                     continue;
                 }
 
-                switch (type)
+                JsonDocument doc;
+                try
                 {
-                    case "s":
-                        ApplyState(client, m);
-                        break;
-                    case "ping":
-                        var ts = m.GetProperty("ts").GetDouble().ToString("R", CultureInfo.InvariantCulture);
-                        await SendAsync(client, $"{{\"t\":\"pong\",\"ts\":{ts}}}");
-                        break;
-                    case "rtt":
-                        client.RttMs = m.GetProperty("ms").GetInt32();
-                        break;
-                    case "name":
-                        var newName = m.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
-                        if (!string.IsNullOrWhiteSpace(newName))
-                            await RenameAsync(client.Key, newName); // also echoes "name" back and raises ClientsChanged
-                        break;
+                    doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, length));
+                }
+                catch (JsonException)
+                {
+                    message.SetLength(0);
+                    continue; // a bad message is ignored, the socket stays open
+                }
+                message.SetLength(0);
+
+                using (doc)
+                {
+                    var m = doc.RootElement;
+                    var type = m.TryGetProperty("t", out var t) ? t.GetString() : null;
+
+                    if (client is null)
+                    {
+                        if (type != "hello") continue;
+                        client = await HelloAsync(ws, m);
+                        if (client is null) return;
+                        continue;
+                    }
+
+                    switch (type)
+                    {
+                        case "s":
+                            ApplyState(client, m);
+                            break;
+                        case "ping":
+                            if (m.TryGetProperty("ts", out var tsEl) && tsEl.TryGetDouble(out var ts))
+                            {
+                                var tsText = ts.ToString("R", CultureInfo.InvariantCulture);
+                                await SendAsync(client, $"{{\"t\":\"pong\",\"ts\":{tsText}}}");
+                            }
+                            break;
+                        case "rtt":
+                            if (m.TryGetProperty("ms", out var msEl) && msEl.TryGetInt32(out var ms))
+                            {
+                                client.RttMs = Math.Clamp(ms, 0, 9999);
+                            }
+                            break;
+                        case "name":
+                            var newName = m.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                            if (!string.IsNullOrWhiteSpace(newName))
+                                await RenameAsync(client.Key, newName);
+                            break;
+                    }
                 }
             }
         }
@@ -387,39 +460,56 @@ public sealed class PhoneServer : IDisposable
         if (cid.Length < 8) return null;
 
         var key = DeviceId.PhonePrefix + cid;
-        if (!_clients.ContainsKey(key) && _clients.Count >= MaxClients)
+        PhoneClient? found = null;
+        var isNew = false;
+        var full = false;
+
+        // Check and insert under one lock, so two phones at once cannot both take the last slot.
+        // Nothing is awaited inside the lock.
+        lock (_admitLock)
         {
-            // Make room by forgetting an offline phone that no player uses.
-            var stale = _clients.Values.FirstOrDefault(c =>
-                !c.Device.IsConnected && (PlayerOf?.Invoke(c.Device.Id) ?? -1) < 0);
-
-            if (stale is null || !_clients.TryRemove(stale.Key, out _))
+            if (!_clients.TryGetValue(key, out found))
             {
-                await RawSendAsync(ws, "{\"t\":\"full\"}");
-                return null;
-            }
+                if (_clients.Count >= MaxClients)
+                {
+                    // Make room by forgetting an offline phone that no player uses.
+                    var stale = _clients.Values.FirstOrDefault(c =>
+                        !c.Device.IsConnected && (PlayerOf?.Invoke(c.Device.Id) ?? -1) < 0);
 
-            ClientsChanged?.Invoke();
+                    if (stale is null || !_clients.TryRemove(stale.Key, out _))
+                    {
+                        full = true;
+                    }
+                }
+
+                if (!full)
+                {
+                    found = new PhoneClient
+                    {
+                        Key = key,
+                        Device = new InputDevice
+                        {
+                            Id = new DeviceId(key, 0),
+                            Name = "Phone",
+                            ReadMode = DeviceReadMode.RawJoystick,
+                            AxisCount = PhoneLayout.AxisCount,
+                            ButtonCount = PhoneLayout.ButtonCount,
+                            Snapshot = new InputSnapshot(PhoneLayout.AxisCount, PhoneLayout.ButtonCount, 0),
+                        },
+                    };
+                    _clients[key] = found;
+                    isNew = true;
+                }
+            }
         }
 
-        var isNew = false;
-        var client = _clients.GetOrAdd(key, _ =>
+        if (full)
         {
-            isNew = true;
-            return new PhoneClient
-            {
-                Key = key,
-                Device = new InputDevice
-                {
-                    Id = new DeviceId(key, 0),
-                    Name = "Phone",
-                    ReadMode = DeviceReadMode.RawJoystick,
-                    AxisCount = PhoneLayout.AxisCount,
-                    ButtonCount = PhoneLayout.ButtonCount,
-                    Snapshot = new InputSnapshot(PhoneLayout.AxisCount, PhoneLayout.ButtonCount, 0),
-                },
-            };
-        });
+            await RawSendAsync(ws, "{\"t\":\"full\"}");
+            return null;
+        }
+
+        var client = found!;
 
         if (isNew)
         {

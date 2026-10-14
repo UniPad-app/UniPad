@@ -471,7 +471,7 @@ function connect(){
     else if(m.t==='pong'){const ms=Math.round(performance.now()-m.ts);$('ms').textContent=ms+' ms';ws.send(JSON.stringify({t:'rtt',ms}));}
     else if(m.t==='full'){stop=true;setSt('full');$('ms').textContent='';}
     else if(m.t==='kicked'){stop=true;player=-1;srvName='';releaseAll();renderPlayer();$('ms').textContent='';setSt('kicked');}
-    else if(m.t==='badtoken'){stop=true;setSt('badtoken');$('ms').textContent='';}};
+    else if(m.t==='badtoken'){stop=true;localStorage.removeItem('k');setSt('badtoken');$('ms').textContent='';}};
   ws.onclose=()=>{if(stop)return;setSt('reconnecting');$('ms').textContent='';setTimeout(connect,retry);retry=Math.min(retry*2,4000);};
 }
 connect();
