@@ -1,0 +1,744 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Globalization;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using QRCoder;
+using Serilog;
+using UniPad.Core.Input;
+
+namespace UniPad.Core.Network;
+
+/// <summary>One IPv4 address the phone page could be reached on.</summary>
+/// <param name="Address">Dotted IPv4 address.</param>
+/// <param name="Adapter">Friendly name of the network adapter.</param>
+/// <param name="Score">Higher is a better guess for "same Wi-Fi as the phone".</param>
+public sealed record PhoneAddress(string Address, string Adapter, int Score);
+
+/// <summary>
+/// One connected (or temporarily disconnected) phone.
+/// </summary>
+public sealed class PhoneClient
+{
+    public required string Key { get; init; } // "phone-xxxxxxxx"
+    public required InputDevice Device { get; init; }
+    public string Name { get; set; } = "Phone";
+    public int Player { get; set; } = -1; // 0-based slot
+    public int RttMs { get; set; }
+    internal WebSocket? Socket;
+    internal readonly SemaphoreSlim SendLock = new(1, 1);
+
+    // Written by the network thread, read by the poll thread under Gate.
+    internal readonly object Gate = new();
+    internal int Buttons;
+    internal readonly float[] Axes = new float[PhoneLayout.AxisCount];
+    internal long LastPacketTicks;
+
+    // A short tap can arrive as press+release in one network burst. The latch keeps the press
+    // visible for at least MinPressMs so neither the poll loop nor bind capture misses it.
+    internal int Latched;
+    internal readonly long[] LatchUntil = new long[PhoneLayout.ButtonCount];
+}
+
+/// <summary>
+/// Local web server: serves the phone page and turns each phone into a synthetic device.
+/// </summary>
+public sealed class PhoneServer : IDisposable
+{
+    /// <summary>
+    /// If a phone goes silent this long, its buttons are released (no stuck inputs).
+    /// </summary>
+    private const int StaleMs = 500;
+    /// <summary>Most phones the server accepts at once.</summary>
+    public const int MaxClients = 16;
+
+    /// <summary>Minimum time a tapped button stays pressed, so quick taps are never lost.</summary>
+    private const int MinPressMs = 40;
+
+    private readonly ConcurrentDictionary<string, PhoneClient> _clients = new();
+    private readonly Dictionary<string, string> _pages = new();
+    private readonly object _admitLock = new();
+    private static readonly TimeSpan AddressCacheTime = TimeSpan.FromSeconds(30);
+    private readonly object _addressLock = new();
+    private IReadOnlyList<PhoneAddress>? _addresses;
+    private DateTime _addressesAt;
+    private WebApplication? _app;
+
+    /// <summary>Port used when the configuration does not say otherwise.</summary>
+    public const int DefaultPort = 3000;
+
+    /// <summary>How many consecutive ports are tried when the configured one is busy.</summary>
+    private const int PortAttempts = 10;
+
+    /// <summary>Adapter name fragments that mark a virtual or VPN adapter a phone cannot reach.</summary>
+    private static readonly string[] VirtualAdapterHints =
+    [
+        "virtual", "vethernet", "hyper-v", "wsl", "vmware", "virtualbox", "vbox",
+        "tap-", "tunnel", "tailscale", "zerotier", "hamachi", "wireguard", "openvpn", "vpn", "bluetooth",
+    ];
+
+    private readonly int _requestedPort;
+
+    public PhoneServer(int port = DefaultPort)
+    {
+        _requestedPort = Math.Clamp(port, 1024, 65535);
+        Port = _requestedPort;
+    }
+
+    /// <summary>Port actually listened on. Can differ from the configured one when it was busy.</summary>
+    public int Port { get; private set; }
+
+    /// <summary>Address chosen by the user for the QR code, or null for automatic.</summary>
+    public string? PreferredAddress { get; set; }
+
+    private IReadOnlyList<PhoneAddress> CachedAddresses()
+    {
+        lock (_addressLock)
+        {
+            if (_addresses is null || DateTime.UtcNow - _addressesAt > AddressCacheTime)
+            {
+                _addresses = AvailableAddresses();
+                _addressesAt = DateTime.UtcNow;
+            }
+
+            return _addresses;
+        }
+    }
+
+    /// <summary>Forces the next read to scan the adapters again (call when the address list is opened).</summary>
+    public void RefreshAddresses()
+    {
+        lock (_addressLock) _addresses = null;
+    }
+
+    public string CurrentAddress
+    {
+        get
+        {
+            var all = CachedAddresses();
+            if (PreferredAddress is not null && all.Any(a => a.Address == PreferredAddress))
+            {
+                return PreferredAddress;
+            }
+
+            return all.Count > 0 ? all[0].Address : "127.0.0.1";
+        }
+    }
+    
+    public string Token { get; private set; } = NewToken();
+    public string JoinUrl => $"http://{CurrentAddress}:{Port}/?k={Token}";
+
+    /// <summary>
+    /// Set by AppState: returns the 0-based player that currently uses this phone, or -1 when no
+    /// player has it. Phones are never given a player automatically; the user picks one.
+    /// </summary>
+    public Func<DeviceId, int>? PlayerOf { get; set; }
+
+    /// <summary>Set by AppState: called after a phone is kicked so its slot is freed.</summary>
+    public Action<PhoneClient>? Released { get; set; }
+
+    public event Action? ClientsChanged;
+
+    public InputDevice? Find(DeviceId id) =>
+        _clients.TryGetValue(id.Guid, out var c) ? c.Device : null;
+
+    /// <summary>Phones that are currently online.</summary>
+    public IEnumerable<InputDevice> Devices =>
+    _clients.Values.Where(c => c.Device.IsConnected).Select(c => c.Device);
+
+    /// <summary>True once the web server is listening.</summary>
+    public bool IsRunning { get; private set; }
+
+    /// <summary>Snapshot of every known phone (online or waiting for a reconnect), ordered by player slot.</summary>
+    public IReadOnlyList<PhoneClient> Clients =>
+        _clients.Values.OrderBy(c => c.Player < 0 ? int.MaxValue : c.Player).ThenBy(c => c.Name).ToArray();
+
+    private volatile string _language = "en";
+
+    /// <summary>Language of the phone page ("en" or "fa"); follows the app language.</summary>
+    public string Language => _language;
+
+    /// <summary>Sets the phone page language and pushes it to every connected phone.</summary>
+    public void SetLanguage(string language)
+    {
+        var normalised = language == "fa" ? "fa" : "en";
+        if (normalised == _language) return;
+        _language = normalised;
+
+        var msg = JsonSerializer.Serialize(new { t = "lang", lang = normalised });
+        foreach (var c in _clients.Values) _ = SendAsync(c, msg);
+    }
+
+    /// <summary>
+    /// Invalidates the current join link and QR code. Phones already connected stay connected,
+    /// but a phone that drops has to scan the new code.
+    /// </summary>
+    public void RegenerateToken() => Token = NewToken();
+
+    /// <summary>PNG image of the join QR code.</summary>
+    public byte[] CreateQrPng(int pixelsPerModule = 8) =>
+        PngByteQRCodeHelper.GetQRCode(JoinUrl, QRCodeGenerator.ECCLevel.Q, pixelsPerModule);
+
+    /// <summary>
+    /// Starts on the configured port and moves to the next ones when it is already taken.
+    /// </summary>
+    public void Start()
+    {
+        Exception? last = null;
+
+        for (var attempt = 0; attempt < PortAttempts; attempt++)
+        {
+            var port = _requestedPort + attempt;
+            if (port > 65535)
+            {
+                break;
+            }
+
+            try
+            {
+                StartOn(port);
+                Log.Information("Phone server listening on port {Port}, join URL {Url}", port, JoinUrl);
+                return;
+            }
+            catch (IOException ex)
+            {
+                // Kestrel reports a busy port as an IOException; anything else is a real fault.
+                last = ex;
+                Log.Warning("Phone server port {Port} is busy, trying the next one", port);
+
+                try { _app?.DisposeAsync().AsTask().Wait(1000); } catch { /* ignore */ }
+                _app = null;
+            }
+        }
+
+        Port = _requestedPort;
+        throw new InvalidOperationException(
+        $"No free port between {_requestedPort} and {_requestedPort + PortAttempts - 1}.", last);
+    }
+
+    private void StartOn(int port)
+    {
+        Port = port;
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(port));
+        _app = builder.Build();
+
+        _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(5) });
+
+        _app.MapGet("/", () => Results.Content(
+            Page("controller.html").Replace("__UNIPAD_LANG__", _language), "text/html; charset=utf-8"));
+
+        _app.MapGet("/admin", (HttpContext c) => Allowed(c, false)
+            ? Results.Content(Page("admin.html"), "text/html; charset=utf-8")
+            : Results.StatusCode(403));
+
+        _app.MapGet("/admin/state", (HttpContext c) =>
+        {
+            if (!Allowed(c, false)) return Results.StatusCode(403);
+            var png = PngByteQRCodeHelper.GetQRCode(JoinUrl, QRCodeGenerator.ECCLevel.Q, 8);
+            return Results.Json(new
+            {
+                url = JoinUrl,
+                qr = "data:image/png;base64," + Convert.ToBase64String(png),
+                clients = Clients.Select(x => new
+                {
+                    id = x.Key,
+                    name = x.Name,
+                    player = x.Player,
+                    online = x.Device.IsConnected,
+                    rtt = x.RttMs,
+                }),
+            });
+        });
+
+        _app.MapPost("/admin/kick/{id}", async (HttpContext c, string id) =>
+        {
+            if (!Allowed(c, true)) return Results.StatusCode(403);
+            await KickAsync(id);
+            return Results.Ok();
+        });
+
+        _app.MapPost("/admin/rename/{id}", async (HttpContext c, string id, string name) =>
+        {
+            if (!Allowed(c, true)) return Results.StatusCode(403);
+            await RenameAsync(id, name);
+            return Results.Ok();
+        });
+
+        _app.MapPost("/admin/newtoken", (HttpContext c) =>
+        {
+            if (!Allowed(c, true)) return Results.StatusCode(403);
+            RegenerateToken();
+            return Results.Ok();
+        });
+
+        _app.Map("/ws", HandleSocketAsync);
+
+        _app.StartAsync().GetAwaiter().GetResult();
+        IsRunning = true;
+    }
+
+    /// <summary>Copies every phone's latest state into its snapshot. Runs on the 1000 Hz poll thread.</summary>
+    public void Poll()
+    {
+        var now = Stopwatch.GetTimestamp();
+        var staleTicks = Stopwatch.Frequency * StaleMs / 1000;
+
+        foreach (var client in _clients.Values)
+        {
+            var snapshot = client.Device.Snapshot;
+            lock (client.Gate)
+            {
+                var fresh = client.Device.IsConnected && now - client.LastPacketTicks < staleTicks;                
+                var buttons = client.Buttons;
+
+                if (client.Latched != 0)
+                {
+                    for (var i = 0; i < PhoneLayout.ButtonCount; i++)
+                    {
+                        var bit = 1 << i;
+                        if ((client.Latched & bit) == 0) continue;
+                        if (now < client.LatchUntil[i]) buttons |= bit;
+                        else client.Latched &= ~bit;
+                    }
+                }
+                
+                for (var i = 0; i < PhoneLayout.ButtonCount; i++)
+                {
+                    snapshot.Buttons[i] = fresh && ((buttons >> i) & 1) != 0;
+                }
+
+                for (var i = 0; i < PhoneLayout.AxisCount; i++)
+                {
+                    snapshot.Axes[i] = fresh ? (short)(client.Axes[i] * 32767f) : (short)0;
+                }
+            }
+
+            snapshot.Revision++;
+            client.Device.LastPollTicks = now;
+        }
+    }
+
+    /// <summary>Largest message accepted from a phone; anything bigger is discarded.</summary>
+    private const int MaxMessageBytes = 4096;
+
+    private async Task HandleSocketAsync(HttpContext ctx)
+    {
+        if (!ctx.WebSockets.IsWebSocketRequest)
+        {
+            ctx.Response.StatusCode = 400;
+            return;
+        }
+
+        using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+        var buffer = new byte[1024];
+        using var message = new MemoryStream();
+        var oversized = false;
+        PhoneClient? client = null;
+
+        try
+        {
+            while (ws.State == WebSocketState.Open)
+            {
+                var result = await ws.ReceiveAsync(buffer, CancellationToken.None);
+                if (result.MessageType == WebSocketMessageType.Close) break;
+
+                // Collect fragments until the whole message has arrived.
+                if (!oversized && result.Count > 0)
+                {
+                    if (message.Length + result.Count > MaxMessageBytes)
+                    {
+                        oversized = true;
+                        message.SetLength(0);
+                    }
+                    else
+                    {
+                        message.Write(buffer, 0, result.Count);
+                    }
+                }
+
+                if (!result.EndOfMessage) continue;
+
+                var tooBig = oversized;
+                oversized = false;
+                var length = (int)message.Length;
+                if (tooBig || length == 0)
+                {
+                    message.SetLength(0);
+                    continue;
+                }
+
+                JsonDocument doc;
+                try
+                {
+                    doc = JsonDocument.Parse(message.GetBuffer().AsMemory(0, length));
+                }
+                catch (JsonException)
+                {
+                    message.SetLength(0);
+                    continue; // a bad message is ignored, the socket stays open
+                }
+                message.SetLength(0);
+
+                using (doc)
+                {
+                    var m = doc.RootElement;
+                    var type = m.TryGetProperty("t", out var t) ? t.GetString() : null;
+
+                    if (client is null)
+                    {
+                        if (type != "hello") continue;
+                        client = await HelloAsync(ws, m);
+                        if (client is null) return;
+                        continue;
+                    }
+
+                    switch (type)
+                    {
+                        case "s":
+                            ApplyState(client, m);
+                            break;
+                        case "ping":
+                            if (m.TryGetProperty("ts", out var tsEl) && tsEl.TryGetDouble(out var ts))
+                            {
+                                var tsText = ts.ToString("R", CultureInfo.InvariantCulture);
+                                await SendAsync(client, $"{{\"t\":\"pong\",\"ts\":{tsText}}}");
+                            }
+                            break;
+                        case "rtt":
+                            if (m.TryGetProperty("ms", out var msEl) && msEl.TryGetInt32(out var ms))
+                            {
+                                client.RttMs = Math.Clamp(ms, 0, 9999);
+                            }
+                            break;
+                        case "name":
+                            var newName = m.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                            if (!string.IsNullOrWhiteSpace(newName))
+                                await RenameAsync(client.Key, newName);
+                            break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Phone socket closed");
+        }
+        finally
+        {
+            if (client is not null && ReferenceEquals(client.Socket, ws))
+            {
+                client.Socket = null;
+                client.Device.IsConnected = false; // slot is kept for reconnect
+                ClientsChanged?.Invoke();
+            }
+        }
+    }
+
+    private async Task<PhoneClient?> HelloAsync(WebSocket ws, JsonElement m)
+    {
+        var token = m.TryGetProperty("k", out var k) ? k.GetString() ?? "" : "";
+        if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token), Encoding.UTF8.GetBytes(Token)))
+        {
+            await RawSendAsync(ws, "{\"t\":\"badtoken\"}");
+            return null;
+        }
+
+        // Only hex, max 16 chars (a 32-char id would be mangled by DeviceId.NormaliseGuid).
+        var rawId = m.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+        var cid = new string(rawId.Where(Uri.IsHexDigit).Take(16).ToArray()).ToLowerInvariant();
+        if (cid.Length < 8) return null;
+
+        var key = DeviceId.PhonePrefix + cid;
+        PhoneClient? found = null;
+        var isNew = false;
+        var full = false;
+        PhoneClient? evicted = null;
+
+        // Check and insert under one lock, so two phones at once cannot both take the last slot.
+        // Nothing is awaited inside the lock.
+        lock (_admitLock)
+        {
+            if (!_clients.TryGetValue(key, out found))
+            {
+                if (_clients.Count >= MaxClients)
+                {
+                    // Make room by forgetting an offline phone that no player uses.
+                    var stale = _clients.Values.FirstOrDefault(c =>
+                        !c.Device.IsConnected && (PlayerOf?.Invoke(c.Device.Id) ?? -1) < 0);
+
+                    if (stale is null || !_clients.TryRemove(stale.Key, out _))
+                    {
+                        full = true;
+                    }
+                    else
+                    {
+                        evicted = stale;
+                    }
+                }
+
+                if (!full)
+                {
+                    found = new PhoneClient
+                    {
+                        Key = key,
+                        Device = new InputDevice
+                        {
+                            Id = new DeviceId(key, 0),
+                            Name = "Phone",
+                            ReadMode = DeviceReadMode.RawJoystick,
+                            AxisCount = PhoneLayout.AxisCount,
+                            ButtonCount = PhoneLayout.ButtonCount,
+                            Snapshot = new InputSnapshot(PhoneLayout.AxisCount, PhoneLayout.ButtonCount, 0),
+                        },
+                    };
+                    _clients[key] = found;
+                    isNew = true;
+                }
+            }
+        }
+
+        // A forgotten phone must not stay attached to a disabled player.
+        if (evicted is not null)
+        {
+            Released?.Invoke(evicted);
+            ClientsChanged?.Invoke();
+        }
+
+        if (full)
+        {
+            await RawSendAsync(ws, "{\"t\":\"full\"}");
+            return null;
+        }
+
+        var client = found!;
+
+        if (isNew)
+        {
+            var name = m.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            client.Name = Clean(name);
+        }
+
+        client.Device.Name = "Phone: " + client.Name;
+
+        // The same phone reconnecting: drop the old socket.
+        var old = client.Socket;
+        client.Socket = ws;
+        try { old?.Abort(); } catch { /* ignore */ }
+
+        lock (client.Gate)
+        {
+            client.Buttons = 0;
+            client.Latched = 0;
+            Array.Clear(client.Axes);
+            client.LastPacketTicks = Stopwatch.GetTimestamp();
+        }
+
+        // No automatic slot: a reconnecting phone finds the player it already had, a new one has none.
+        client.Player = PlayerOf?.Invoke(client.Device.Id) ?? -1;
+
+        client.Device.IsConnected = true;
+        await SendAsync(client, JsonSerializer.Serialize(new { t = "welcome", player = client.Player, name = client.Name, lang = _language }));
+        ClientsChanged?.Invoke();
+        return client;
+    }
+
+     private static void ApplyState(PhoneClient client, JsonElement m)
+    {
+        static float Read(JsonElement e, string name, float min) =>
+            e.TryGetProperty(name, out var v) && v.TryGetDouble(out var d) ? Math.Clamp((float)d, min, 1f) : 0f;
+
+        var now = Stopwatch.GetTimestamp();
+        var bits = m.TryGetProperty("b", out var b) && b.TryGetInt32(out var value) ? value : 0;
+
+        lock (client.Gate)
+        {
+            // Newly pressed buttons are latched so a press+release in the same burst still counts.
+            var rising = bits & ~client.Buttons;
+            if (rising != 0)
+            {
+                var until = now + Stopwatch.Frequency * MinPressMs / 1000;
+                for (var i = 0; i < PhoneLayout.ButtonCount; i++)
+                {
+                    if ((rising & (1 << i)) != 0) client.LatchUntil[i] = until;
+                }
+                client.Latched |= rising;
+            }
+
+            client.Buttons = bits;
+            client.Axes[PhoneLayout.LX] = Read(m, "lx", -1f);
+            client.Axes[PhoneLayout.LY] = Read(m, "ly", -1f);
+            client.Axes[PhoneLayout.RX] = Read(m, "rx", -1f);
+            client.Axes[PhoneLayout.RY] = Read(m, "ry", -1f);
+            client.Axes[PhoneLayout.LT] = Read(m, "lt", 0f);
+            client.Axes[PhoneLayout.RT] = Read(m, "rt", 0f);
+            client.LastPacketTicks = now;
+        }
+    }
+
+    public async Task KickAsync(string key)
+    {
+        if (!_clients.TryRemove(key, out var client)) return;
+
+        client.Device.IsConnected = false;
+        await SendAsync(client, "{\"t\":\"kicked\"}");
+        try { client.Socket?.Abort(); } catch { /* ignore */ }
+        client.Socket = null;
+
+        Released?.Invoke(client);
+        ClientsChanged?.Invoke();
+    }
+
+    public async Task RenameAsync(string key, string name)
+    {
+        if (!_clients.TryGetValue(key, out var client)) return;
+
+        client.Name = Clean(name);
+        client.Device.Name = "Phone: " + client.Name;
+        await SendAsync(client, JsonSerializer.Serialize(new { t = "name", name = client.Name }));
+        ClientsChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Re-reads which player each phone belongs to and tells the phones whose player changed.
+    /// Called by AppState whenever the output is applied.
+    /// </summary>
+    public void RefreshPlayers()
+    {
+        var changed = false;
+        foreach (var client in _clients.Values)
+        {
+            var player = PlayerOf?.Invoke(client.Device.Id) ?? -1;
+            if (player == client.Player) continue;
+
+            client.Player = player;
+            changed = true;
+            _ = SendAsync(client, JsonSerializer.Serialize(new { t = "player", player }));
+        }
+
+        if (changed) ClientsChanged?.Invoke();
+    }
+
+    private static async Task SendAsync(PhoneClient client, string text)
+    {
+        var ws = client.Socket;
+        if (ws is not { State: WebSocketState.Open }) return;
+
+        await client.SendLock.WaitAsync();
+        try { await RawSendAsync(ws, text); }
+        catch { /* socket died; the receive loop cleans up */ }
+        finally { client.SendLock.Release(); }
+    }
+
+    private static Task RawSendAsync(WebSocket ws, string text) =>
+        ws.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, CancellationToken.None);
+
+    /// <summary>Admin pages only from this PC; write actions also need a custom header (blocks CSRF).</summary>
+    private static bool Allowed(HttpContext c, bool write)
+    {
+        var ip = c.Connection.RemoteIpAddress;
+        if (ip is null) return false;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        return IPAddress.IsLoopback(ip) && (!write || c.Request.Headers.ContainsKey("X-UniPad"));
+    }
+
+    private string Page(string name)
+    {
+        lock (_pages)
+        {
+            if (_pages.TryGetValue(name, out var cached)) return cached;
+            using var stream = typeof(PhoneServer).Assembly.GetManifestResourceStream("UniPad.Web." + name)
+                               ?? throw new FileNotFoundException(name);
+            using var reader = new StreamReader(stream);
+            return _pages[name] = reader.ReadToEnd();
+        }
+    }
+
+    private static string Clean(string name)
+    {
+        var trimmed = new string(name.Where(ch => !char.IsControl(ch)).Take(20).ToArray()).Trim();
+        return trimmed.Length == 0 ? "Player" : trimmed;
+    }
+
+    private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+
+    /// <summary>
+    /// Every IPv4 address a phone might reach this PC on, best guess first. Virtual and VPN
+    /// adapters (Hyper-V, WSL, VirtualBox, VPNs) are kept but ranked last.
+    /// </summary>
+    public static IReadOnlyList<PhoneAddress> AvailableAddresses()
+    {
+        var result = new List<PhoneAddress>();
+
+        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (nic.OperationalStatus != OperationalStatus.Up
+            || nic.NetworkInterfaceType is NetworkInterfaceType.Loopback
+            or NetworkInterfaceType.Tunnel
+            or NetworkInterfaceType.Ppp)
+            {
+                continue;
+            }
+
+            var text = $"{nic.Name} {nic.Description}".ToLowerInvariant();
+            var isVirtual = VirtualAdapterHints.Any(text.Contains);
+            var isPhysical = nic.NetworkInterfaceType is NetworkInterfaceType.Wireless80211
+            or NetworkInterfaceType.Ethernet;
+
+            var props = nic.GetIPProperties();
+            var hasGateway = props.GatewayAddresses.Any(g =>
+            g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
+
+            foreach (var unicast in props.UnicastAddresses)
+            {
+                var ip = unicast.Address;
+                if (ip.AddressFamily != AddressFamily.InterNetwork)
+                {
+                    continue;
+                }
+
+                var bytes = ip.GetAddressBytes();
+                if (bytes[0] == 169 && bytes[1] == 254)
+                {
+                    continue; // link-local: no DHCP, nothing can reach it
+                }
+
+                var score = 0;
+                if (hasGateway) score += 4;
+                if (IsPrivate(bytes)) score += 2;
+                if (isPhysical) score += 2;
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) score += 1;
+                if (isVirtual) score -= 10;
+
+                result.Add(new PhoneAddress(ip.ToString(), nic.Name, score));
+            }
+        }
+
+        return result.OrderByDescending(a => a.Score).ToList();
+    }
+
+    private static bool IsPrivate(byte[] b) =>
+    b[0] == 10
+    || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+    || (b[0] == 192 && b[1] == 168);
+
+    public void Dispose()
+    {
+        foreach (var c in _clients.Values)
+        {
+            try { c.Socket?.Abort(); } catch { /* ignore */ }
+        }
+
+        try { _app?.StopAsync().Wait(2000); } catch { /* ignore */ }
+    }
+}

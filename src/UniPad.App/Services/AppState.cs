@@ -6,6 +6,8 @@ using UniPad.Core.Mapping;
 using UniPad.Core.Output;
 using UniPad.Core.Profiles;
 using UniPad.Core.SystemServices;
+using UniPad.Core.Network;
+using System.Globalization;
 
 namespace UniPad.App.Services;
 
@@ -58,8 +60,22 @@ public sealed class AppState : IDisposable
             KeyboardMouse.Mouse.InvertY = Config.MouseInvertY;
 
             // Lets FindDevice resolve "keyboard:0" through the same call every joystick uses.
-            Input.SyntheticResolver = _ => KeyboardMouse.Device;
         }
+
+        Phones = new PhoneServer(Config.PhoneServerPort) { PreferredAddress = Config.PhoneServerAddress };
+        Phones.PlayerOf = PhonePlayerOf;
+        Phones.Released = ReleasePhoneSlot;
+        Phones.ClientsChanged += SyncPhoneNames;
+        // A phone coming online or leaving changes which pads can exist, so the output is
+        // re-applied (unforced, so it is free when nothing changed). QueueApply also raises
+        // DevicesChanged, which puts the phone into every player's device picker.
+        Phones.ClientsChanged += QueueApply;
+
+        // Phones resolve to their own device, everything else synthetic to the keyboard.
+        Input.SyntheticResolver = id => id.IsPhone ? Phones.Find(id) : KeyboardMouse?.Device;
+
+        // Lets bind capture hear phones even before a player has a device assigned.
+        Input.SyntheticDevices = () => Phones.Devices;
 
         Output = new OutputManager(Input);
         HidHide = new HidHideService();
@@ -71,13 +87,12 @@ public sealed class AppState : IDisposable
         // The mapping evaluation runs inside the poll cycle so latency stays within one iteration.
         // The synthetic source refreshes first, so the mapping engines see the same cycle's mouse
         // delta rather than the previous one.
-        Input.OnPollCycle = KeyboardMouse is null
-            ? Output.ProcessCycle
-            : () =>
-            {
-                KeyboardMouse.Poll();
-                Output.ProcessCycle();
-            };
+        Input.OnPollCycle = () =>
+        {
+            KeyboardMouse?.Poll();
+            Phones.Poll();
+            Output.ProcessCycle();
+        };
 
         Input.DeviceChanged += OnDeviceChanged;
     }
@@ -94,6 +109,9 @@ public sealed class AppState : IDisposable
     /// <summary>Synthetic keyboard and mouse source, or null when the feature is disabled.</summary>
     public KeyboardMouseBackend? KeyboardMouse { get; }
 
+    /// <summary>Phone controller server.</summary>
+    public PhoneServer Phones { get; }
+
     /// <summary>
     /// Number of sources a player can be mapped to: every SDL device, plus the synthetic keyboard
     /// and mouse while it is running.
@@ -105,7 +123,9 @@ public sealed class AppState : IDisposable
     /// </para>
     /// </summary>
     public int InputSourceCount =>
-        Input.Devices.Count() + (KeyboardMouse is { IsRunning: true } ? 1 : 0);
+        Input.Devices.Count()
+        + (KeyboardMouse is { IsRunning: true } ? 1 : 0)
+        + Phones.Devices.Count();
 
     /// <summary>Virtual pad output manager.</summary>
     public OutputManager Output { get; }
@@ -127,6 +147,12 @@ public sealed class AppState : IDisposable
     /// the UI thread.
     /// </summary>
     public event Action? DevicesChanged;
+
+    /// <summary>
+    /// Raised on the UI thread with the indices of players whose phone was moved to another
+    /// player, so their tabs can re-read the mapping.
+    /// </summary>
+    public event Action<IReadOnlyList<int>>? PlayersReassigned;
 
     /// <summary>
     /// Raised when a transient status message should be shown. Always raised on the UI thread.
@@ -180,6 +206,23 @@ public sealed class AppState : IDisposable
 
         // Started after SDL so that a failure here cannot prevent controllers from working.
         KeyboardMouse?.Start();
+        try
+        {
+        Phones.Start();
+
+        if (Phones.Port != Config.PhoneServerPort)
+        {
+        var port = Phones.Port.ToString(CultureInfo.InvariantCulture);
+        RaiseStatus(new StatusReport(
+        "msg.phonePortChanged", port, $"Port was busy, phone server is using port {port}"));
+        }
+        }
+        catch (Exception ex)
+        {
+        Log.Error(ex, "Phone server failed to start");
+        RaiseStatus(new StatusReport(
+        "msg.phoneServerFailed", ex.Message, $"Phone server failed: {ex.Message}"));
+        }
 
         Output.TryInitialiseDriver();
         Output.Enabled = Config.OutputEnabled;
@@ -457,6 +500,9 @@ public sealed class AppState : IDisposable
     {
         lock (_applyGate)
         {
+            // Every path that changes a player's device or enabled state ends up here.
+            Phones.RefreshPlayers();
+
             var signature = ComposeOutputSignature();
 
             if (!force && string.Equals(signature, _appliedSignature, StringComparison.Ordinal))
@@ -558,6 +604,7 @@ public sealed class AppState : IDisposable
         Config.ActiveProfile = ActiveProfileName;
         Config.PollRateHz = Input.PollRateHz;
         Config.OutputEnabled = Output.Enabled;
+        Config.PhoneServerAddress = Phones.PreferredAddress;
 
         if (KeyboardMouse is not null)
         {
@@ -574,8 +621,12 @@ public sealed class AppState : IDisposable
     {
         var loaded = Store.LoadProfile(name);
 
-        _players.Clear();
-        _players.AddRange(loaded);
+        lock (_players)
+        {
+            _players.Clear();
+            _players.AddRange(loaded);
+        }
+
         ActiveProfileName = name;
         Config.ActiveProfile = name;
 
@@ -591,10 +642,13 @@ public sealed class AppState : IDisposable
     /// <summary>Replaces one player's mapping, typically after a cancellable edit session.</summary>
     public void UpdatePlayer(PlayerMapping updated)
     {
-        var index = _players.FindIndex(p => p.Index == updated.Index);
-        if (index >= 0)
+        lock (_players)
         {
-            _players[index] = updated;
+            var index = _players.FindIndex(p => p.Index == updated.Index);
+            if (index >= 0)
+            {
+                _players[index] = updated;
+            }
         }
     }
 
@@ -679,6 +733,167 @@ public sealed class AppState : IDisposable
     public void ReportStatus(string key, string? detail, string? fallback = null) =>
         RaiseStatus(new StatusReport(key, detail ?? string.Empty, fallback ?? key));
 
+    /// <summary>
+    /// The player that uses a phone: the first enabled player whose device is that phone, or -1.
+    /// Called from network and worker threads.
+    /// </summary>
+    private int PhonePlayerOf(DeviceId id)
+    {
+        lock (_players)
+        {
+            return _players.FirstOrDefault(p => p.Enabled && p.Device == id)?.Index ?? -1;
+        }
+    }
+
+    /// <summary>
+    /// Gives a phone to a player, chosen by the user from the device picker. A phone drives one
+    /// player only, so any other player holding it is released. Called on the UI thread.
+    /// </summary>
+    public void AssignPhone(PlayerMapping target, DeviceId phone)
+    {
+        var released = new List<int>();
+
+        lock (_players)
+        {
+            foreach (var other in _players)
+            {
+                if (other.Index == target.Index || other.Device != phone) continue;
+
+                using (Output.BeginMappingEdit(other.Index))
+                {
+                    other.ClearBindings();
+                    other.RestoreDefaults();    // Reset sliders, vibration, output type, etc. to factory values
+                    other.ProfileName = null;   // Same as ClearAll: the player no longer matches any profile
+                    other.Enabled = false;
+                    other.Device = null;
+                    other.DeviceName = null;
+                }
+
+                released.Add(other.Index);
+            }
+
+            using (Output.BeginMappingEdit(target.Index))
+            {
+                if (target.Device is { IsPhone: true } && target.HasAnyBinding)
+                {
+                    // Phone to phone: same layout, so the user's custom bindings are kept.
+                    RemapPlayerDevice(target, phone);
+                }
+                else
+                {
+                    // A controller's raw indices mean nothing on a phone: write the phone layout.
+                    PhoneLayout.ApplyTo(target, phone);
+                    target.Device = phone;
+                    target.ProfileName = null; // the bindings no longer match the linked profile
+                }
+
+                target.DeviceName = Phones.Find(phone)?.Name;
+                target.Enabled = true;
+                if (target.Index >= OutputManager.XInputSlotCount)
+                {
+                    target.OutputType = VirtualPadType.DualShock4;
+                }
+            }
+        }
+
+        var handler = PlayersReassigned;
+        if (released.Count > 0 && handler is not null)
+        {
+            Dispatcher.UIThread.Post(() => handler.Invoke(released));
+        }
+    }
+
+    /// <summary>Frees the slot of a kicked phone.</summary>
+    private void ReleasePhoneSlot(PhoneClient phone)
+    {
+        int? releasedIndex = null;
+
+        lock (_players)
+        {
+            var player = _players.FirstOrDefault(p => p.Device == phone.Device.Id);
+            if (player is null)
+            {
+                return;
+            }
+
+            using (Output.BeginMappingEdit(player.Index))
+            {
+                player.ClearBindings();
+                player.RestoreDefaults();   // Reset sliders, vibration, output type, etc. to factory values
+                player.ProfileName = null;  // Same as ClearAll: the player no longer matches any profile
+                player.Enabled = false;
+                player.Device = null;
+                player.DeviceName = null;
+            }
+
+            releasedIndex = player.Index;
+        }
+
+        QueueApply();
+
+        // Notify the player's tab so the sliders and device list refresh with the new values
+        var handler = PlayersReassigned;
+        if (releasedIndex is int index && handler is not null)
+        {
+            Dispatcher.UIThread.Post(() => handler.Invoke(new[] { index }));
+        }
+    }
+
+    /// <summary>Keeps the player's device caption in step with a phone rename.</summary>
+    private void SyncPhoneNames()
+    {
+        lock (_players)
+        {
+            foreach (var phone in Phones.Clients)
+            {
+                var player = _players.FirstOrDefault(p => p.Device == phone.Device.Id);
+                if (player is not null) player.DeviceName = phone.Device.Name;
+            }
+        }
+    }
+
+    /// <summary>Applies the output off-thread, serialised with hot-plug handling.</summary>
+    private void QueueApply()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _hotplugGate.WaitAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return; // shutting down
+            }
+
+            try
+            {
+                if (!_disposed)
+                {
+                    ApplyOutput();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Applying phone slot failed");
+            }
+            finally
+            {
+                try { _hotplugGate.Release(); } catch (ObjectDisposedException) { /* shutting down */ }
+            }
+
+            if (!_disposed)
+            {
+                RaiseDevicesChanged();
+            }
+        });
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -703,6 +918,10 @@ public sealed class AppState : IDisposable
 
         // Order matters: stop cloaking before releasing devices so nothing stays hidden.
         HidHide.DisableCloaking();
+        // Closing the sockets raises ClientsChanged; nothing may be queued while shutting down.
+        Phones.ClientsChanged -= QueueApply;
+        Phones.ClientsChanged -= SyncPhoneNames;
+        Phones.Dispose();
         Output.Dispose();
         KeyboardMouse?.Dispose();
         Input.Dispose();

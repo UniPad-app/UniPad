@@ -214,17 +214,24 @@ public sealed class BindCaptureService
     {
         if (_restrictToDevice is not null)
         {
-            var restricted = _restrictToDevice.IsSynthetic
-                ? _keyboardMouse?.Device
-                : _input.FindDevice(_restrictToDevice);
+            // Only the keyboard lives outside FindDevice; phones resolve through it like joysticks.
+            var restricted = _restrictToDevice.IsKeyboardMouse
+            ? _keyboardMouse?.Device
+            : _input.FindDevice(_restrictToDevice);
 
             return restricted is { IsConnected: true } ? [restricted] : [];
         }
 
+        IEnumerable<InputDevice> all = _input.Devices;
+
+        var phones = _input.SyntheticDevices?.Invoke();
+        if (phones is not null)
+        {
+            all = all.Concat(phones);
+        }
+
         var synthetic = _keyboardMouse?.Device;
-        return synthetic is { IsConnected: true }
-            ? _input.Devices.Append(synthetic)
-            : _input.Devices;
+        return synthetic is { IsConnected: true } ? all.Append(synthetic) : all;
     }
 
     /// <summary>
@@ -298,7 +305,7 @@ public sealed class BindCaptureService
         // The mouse axes are assigned by the auto-map defaults and never by capture: simply moving
         // the mouse towards the bind button would otherwise grab the binding before the user has
         // pressed anything at all.
-        if (!device.Id.IsSynthetic && _axisBaselines.TryGetValue(key, out var axisBaseline))
+        if (!device.Id.IsKeyboardMouse && _axisBaselines.TryGetValue(key, out var axisBaseline))
         {
             var count = Math.Min(snapshot.Axes.Length, axisBaseline.Length);
             var threshold = (int)(AxisMax * AxisTriggerFraction);

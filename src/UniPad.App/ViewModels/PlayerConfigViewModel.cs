@@ -23,9 +23,15 @@ public delegate void PadStatePreviewHandler(in PadState state);
 /// <summary>One entry in the input device picker.</summary>
 /// <param name="Id">Stable device id, or null for the "Any / none" entry.</param>
 /// <param name="Display">Text shown in the combo box.</param>
-public sealed record DeviceOption(DeviceId? Id, string Display)
+public sealed class DeviceOption(DeviceId? id, string display)
 {
-    /// <inheritdoc />
+    /// Stable device id, or null for the "Any / none" entry.
+    public DeviceId? Id { get; } = id;
+
+    /// Text shown in the combo box.
+    public string Display { get; } = display;
+
+    /// <inheritdoc/>
     public override string ToString() => Display;
 }
 
@@ -388,6 +394,12 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
                 Devices.Add(new DeviceOption(DeviceId.Keyboard, Strings.Get("player.keyboardMouse")));
             }
 
+            // Online phones are listed by name, right after the keyboard.
+            foreach (var phone in _state.Phones.Devices.OrderBy(d => d.Name, StringComparer.CurrentCulture))
+            {
+                Devices.Add(new DeviceOption(phone.Id, phone.Name));
+            }
+
             // The ordinal in DisplayName counts within one GUID, so two sticks on the same adapter can
             // both be the first of their own kind and read identically in the picker. Numbering is done
             // here instead, where the whole list is visible: a name that occurs once is shown bare, and
@@ -593,8 +605,50 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
             return;
         }
 
+        // A phone is handed over as a whole: phone layout, player enabled, and released from
+        // whichever player had it before.
+        if (newDevice is { IsPhone: true })
+        {
+            _state.AssignPhone(Mapping, newDevice);
+            PullFromMapping();
+            RequestApplyOutput();
+            return;
+        }
+
         // Re-point every existing binding at the new device so the user does not have to redo them.
         var oldDevice = Mapping.Device;
+
+        // Leaving a phone: its bindings use phone indices, which mean nothing on any other device,
+        // and left in place they would keep the phone driving this pad.
+        if (oldDevice is { IsPhone: true })
+        {
+            var device = newDevice is null ? null : _state.Input.FindDevice(newDevice);
+
+            EditMapping(() =>
+            {
+                Mapping.ClearBindings();
+                Mapping.RestoreDefaults();   // the phone layout set its own dead zones
+                Mapping.ProfileName = null;
+                Mapping.Device = newDevice;
+
+                if (device is not null)
+                {
+                    AutoMapper.Apply(Mapping, device);
+                }
+
+                Mapping.DeviceName = device?.Name;
+            });
+
+            if (newDevice is null)
+            {
+                Mapping.Enabled = false;
+            }
+
+            PullFromMapping();
+            RequestApplyOutput();
+            return;
+        }
+
         Mapping.Device = newDevice;
         Mapping.DeviceName = newDevice is null ? null : _state.Input.FindDevice(newDevice)?.Name;
 
@@ -888,6 +942,7 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
         var key = result.Outcome switch
         {
             AutoMapOutcome.KeyboardMouse => "msg.autoMapKeyboard",
+            AutoMapOutcome.Phone => "msg.autoMapPhone",
             AutoMapOutcome.SdlDatabase => "msg.autoMapSdl",
             AutoMapOutcome.Guessed => "msg.autoMapGuessed",
             _ => "msg.autoMapFailed",

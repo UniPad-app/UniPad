@@ -29,10 +29,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>
     /// Selected entry in the left-hand category sidebar: 0 = Controls (the player tabs),
-    /// 1 = Advanced, 2 = About. Advanced and About used to be tabs; they are categories now.
+    /// 1 = Phones, 2 = Advanced, 3 = About. Advanced and About used to be tabs; they are categories now.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsControlsCategory))]
+    [NotifyPropertyChangedFor(nameof(IsPhonesCategory))]
     [NotifyPropertyChangedFor(nameof(IsAdvancedCategory))]
     [NotifyPropertyChangedFor(nameof(IsAboutCategory))]
     private int _selectedCategoryIndex;
@@ -73,6 +74,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         Advanced = new AdvancedViewModel(state);
         Advanced.ThemeRequested += theme => ThemeChangeRequested?.Invoke(theme);
+        Phones = new PhonesViewModel(state);
         About = new AboutViewModel(state);
         // After an update the new executable is already on disk; exiting hands control to it.
         About.RestartRequested += () => ExitRequested?.Invoke();
@@ -93,6 +95,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         state.DevicesChanged += OnDevicesChanged;
+        state.PlayersReassigned += OnPlayersReassigned;
         state.StatusMessage += OnStatusMessage;
         state.StatusReported += OnStatusReported;
 
@@ -113,6 +116,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>About tab, carrying the version and the third-party licence credits.</summary>
     public AboutViewModel About { get; }
 
+    /// <summary>Phones page: QR code and the phones connected over local Wi-Fi.</summary>
+    public PhonesViewModel Phones { get; }
+
     /// <summary>Every tab shown in the strip: the eight players followed by Advanced.</summary>
     public ObservableCollection<TabDescriptor> AllTabs { get; } = [];
 
@@ -120,10 +126,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public bool IsControlsCategory => SelectedCategoryIndex == 0;
 
     /// <summary>True while the Advanced category is selected.</summary>
-    public bool IsAdvancedCategory => SelectedCategoryIndex == 1;
+    public bool IsAdvancedCategory => SelectedCategoryIndex == 2;
+
+    /// <summary>True while the Phones category is selected.</summary>
+    public bool IsPhonesCategory => SelectedCategoryIndex == 1;
 
     /// <summary>True while the About category is selected.</summary>
-    public bool IsAboutCategory => SelectedCategoryIndex == 2;
+    public bool IsAboutCategory => SelectedCategoryIndex == 3;
 
     /// <summary>Available profile names.</summary>
     public ObservableCollection<string> Profiles { get; } = [];
@@ -160,6 +169,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             _diagnosticsTickCounter = 0;
 
+            // Latency and the online state of each phone are re-read by the page itself every ~1.5 s.
+            if (IsPhonesCategory)
+            {
+                Phones.Tick();
+            }
+
             // Advanced is a sidebar category now; About needs no live data.
             if (IsAdvancedCategory)
             {
@@ -180,7 +195,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         Advanced.RefreshDriverStatus();
+        Phones.Refresh();
         RefreshBanners();
+        UpdateConnectedSummary();
+    }
+
+    /// <summary>A phone moved to another player: the tabs it left must show it is gone.</summary>
+    private void OnPlayersReassigned(IReadOnlyList<int> indices)
+    {
+        foreach (var index in indices)
+        {
+            if ((uint)index >= (uint)Players.Count) continue;
+            Players[index].RefreshDevices();
+            Players[index].PullFromMapping();
+        }
+
         UpdateConnectedSummary();
     }
 
@@ -533,6 +562,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void HideWindow() => HideRequested?.Invoke();
 
+    /// <summary>Restores the window on the Phones page. Bound to the tray menu.</summary>
+    [RelayCommand]
+    private void ShowPhones()
+    {
+        SelectedCategoryIndex = 1;
+        Phones.Refresh();
+        ShowRequested?.Invoke();
+    }
+
     partial void OnSelectedProfileChanged(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value == _state.ActiveProfileName)
@@ -559,9 +597,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     partial void OnSelectedCategoryIndexChanged(int value)
     {
-        if (value == 1)
+        if (value == 2)
         {
             Advanced.UpdateDiagnostics();
+        }
+        else if (value == 1)
+        {
+            Phones.Refresh();
         }
     }
     

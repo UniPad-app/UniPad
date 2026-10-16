@@ -211,6 +211,14 @@ public sealed class AppConfigDto
     /// <summary>Inverts vertical mouse movement.</summary>
     [JsonPropertyName("mouseInvertY")]
     public bool MouseInvertY { get; set; }
+
+     /// <summary>TCP port of the phone controller server. Falls forward to the next free port if busy.</summary>
+    [JsonPropertyName("phoneServerPort")]
+    public int PhoneServerPort { get; set; } = 3000;
+
+    /// <summary>IP address shown in the QR code, or null to pick the best adapter automatically.</summary>
+    [JsonPropertyName("phoneServerAddress")]
+    public string? PhoneServerAddress { get; set; }
 }
 
 /// <summary>Schema version constants and migration helpers.</summary>

@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:UniPad.App.ViewModels"
+             xmlns:loc="clr-namespace:UniPad.App.Localization"
+             mc:Ignorable="d"
+             d:DesignWidth="900" d:DesignHeight="560"
+             x:Class="UniPad.App.Views.PhonesView"
+             x:DataType="vm:PhonesViewModel">
+
+  <!--
+    Phones page: the in-app version of the /admin web page. The left column is everything a new
+    phone needs to join (QR code, link, server state); the right column lists the phones already
+    known to the server, with the same rename and kick actions the web page offers. The boxes use
+    the same groupBox / banner / caption classes as the Advanced page so both read as one family.
+  -->
+  <Grid ColumnDefinitions="300,*" Margin="6">
+
+    <!-- ============ Join: QR code, link and server state ============ -->
+    <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,3,0">
+
+      <HeaderedContentControl Classes="groupBox"
+                              Header="{Binding Text[phones.connect], Source={x:Static loc:Strings.Instance}}">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="{Binding Text[phones.hint], Source={x:Static loc:Strings.Instance}}" />
+
+          <!-- A QR code must stay dark-on-light whatever the theme, or phone cameras will not read it. -->
+          <Border Background="White" Padding="4" CornerRadius="2"
+                  HorizontalAlignment="Center"
+                  IsVisible="{Binding IsServerRunning}">
+            <Image Source="{Binding QrImage}" Width="200" Height="200" Stretch="Uniform"
+                   RenderOptions.BitmapInterpolationMode="None" />
+          </Border>
+
+          <TextBlock Classes="caption"
+                     IsVisible="{Binding IsServerRunning}"
+                     Text="{Binding Text[phones.joinUrl], Source={x:Static loc:Strings.Instance}}" />
+          <!-- A URL is always left-to-right, even inside a Persian page. -->
+          <SelectableTextBlock Classes="mono" TextWrapping="Wrap" FlowDirection="LeftToRight"
+                               IsVisible="{Binding IsServerRunning}"
+                               Text="{Binding JoinUrl}" />
+
+          <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsServerRunning}">
+            <Button Classes="accent" Margin="0,0,4,4"
+                    Click="OnCopyLinkClick"
+                    Content="{Binding Text[phones.copy], Source={x:Static loc:Strings.Instance}}" />
+            <Button Margin="0,0,4,4"
+                    Command="{Binding NewQrCommand}"
+                    Content="{Binding Text[phones.newQr], Source={x:Static loc:Strings.Instance}}" />
+          </WrapPanel>
+
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Foreground="{DynamicResource WarningBrush}"
+                     IsVisible="{Binding IsServerRunning}"
+                     Text="{Binding Text[phones.newQrHint], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </HeaderedContentControl>
+
+      <HeaderedContentControl Classes="groupBox"
+                              Header="{Binding Text[phones.server], Source={x:Static loc:Strings.Instance}}">
+        <StackPanel Spacing="5">
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     IsVisible="{Binding IsServerRunning}"
+                     Text="{Binding ServerStatus}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     IsVisible="{Binding !IsServerRunning}"
+                     Foreground="{DynamicResource DangerBrush}"
+                     Text="{Binding ServerStatus}" />
+          <Button HorizontalAlignment="Left"
+                  IsEnabled="{Binding IsServerRunning}"
+                  Command="{Binding OpenAdminCommand}"
+                  Content="{Binding Text[phones.openAdmin], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </HeaderedContentControl>
+    </StackPanel>
+
+    <!-- ============ Connected phones ============ -->
+    <HeaderedContentControl Grid.Column="1" Classes="groupBox" Margin="3,3,0,0"
+                            Header="{Binding Text[phones.connected], Source={x:Static loc:Strings.Instance}}">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+        <TextBlock Grid.Row="0" Classes="caption" Margin="0,0,0,6" Text="{Binding Summary}" />
+
+        <!-- Column captions; the widths match the row template below. -->
+        <Grid Grid.Row="1" ColumnDefinitions="56,*,96,72,190" Margin="9,0,9,3"
+              IsVisible="{Binding HasClients}">
+          <TextBlock Grid.Column="0" Classes="caption"
+                     Text="{Binding Text[tab.player], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Grid.Column="1" Classes="caption"
+                     Text="{Binding Text[phones.colName], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Grid.Column="2" Classes="caption"
+                     Text="{Binding Text[phones.colStatus], Source={x:Static loc:Strings.Instance}}" />
+          <TextBlock Grid.Column="3" Classes="caption"
+                     Text="{Binding Text[phones.colLatency], Source={x:Static loc:Strings.Instance}}" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Clients}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:PhoneClientRow">
+                <Border Classes="banner" Margin="0,0,0,3" BorderBrush="{DynamicResource BorderBrush}">
+                  <Grid ColumnDefinitions="56,*,96,72,190">
+
+                    <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Text="{Binding PlayerText}" />
+
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding !IsEditing}"
+                               Text="{Binding Name}" />
+                    <TextBox Grid.Column="1" Margin="0,0,6,0" MaxLength="20"
+                             IsVisible="{Binding IsEditing}"
+                             Text="{Binding EditName}">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                        <KeyBinding Gesture="Escape" Command="{Binding CancelRenameCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+
+                    <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                               IsVisible="{Binding IsOnline}"
+                               Text="{Binding Text[phones.online], Source={x:Static loc:Strings.Instance}}" />
+                    <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                               IsVisible="{Binding IsOffline}"
+                               Foreground="{DynamicResource WarningBrush}"
+                               Text="{Binding Text[phones.offline], Source={x:Static loc:Strings.Instance}}" />
+
+                    <TextBlock Grid.Column="3" Classes="mono" VerticalAlignment="Center"
+                               Text="{Binding LatencyText}" />
+
+                    <!-- Normal actions -->
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right"
+                                IsVisible="{Binding !IsEditing}">
+                      <Button Margin="0,0,4,0"
+                              IsVisible="{Binding !IsConfirmingKick}"
+                              Command="{Binding BeginRenameCommand}"
+                              Content="{Binding Text[action.rename], Source={x:Static loc:Strings.Instance}}" />
+                      <Button IsVisible="{Binding !IsConfirmingKick}"
+                              Command="{Binding KickCommand}"
+                              Content="{Binding Text[phones.kick], Source={x:Static loc:Strings.Instance}}" />
+
+                      <Button Margin="0,0,4,0" Classes="accent"
+                              IsVisible="{Binding IsConfirmingKick}"
+                              Command="{Binding KickCommand}"
+                              Content="{Binding Text[phones.kickConfirm], Source={x:Static loc:Strings.Instance}}" />
+                      <Button IsVisible="{Binding IsConfirmingKick}"
+                              Command="{Binding CancelKickCommand}"
+                              Content="{Binding Text[action.cancel], Source={x:Static loc:Strings.Instance}}" />
+                    </StackPanel>
+
+                    <!-- Rename in progress -->
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right"
+                                IsVisible="{Binding IsEditing}">
+                      <Button Margin="0,0,4,0" Classes="accent"
+                              Command="{Binding SaveNameCommand}"
+                              Content="{Binding Text[action.save], Source={x:Static loc:Strings.Instance}}" />
+                      <Button Command="{Binding CancelRenameCommand}"
+                              Content="{Binding Text[action.cancel], Source={x:Static loc:Strings.Instance}}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Empty state, drawn over the (empty) list. -->
+        <TextBlock Grid.Row="2" Classes="caption" TextWrapping="Wrap"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                   MaxWidth="360"
+                   IsVisible="{Binding HasNoClients}"
+                   Text="{Binding Text[phones.none], Source={x:Static loc:Strings.Instance}}" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0"
+                    IsVisible="{Binding HasClients}">
+          <Button IsVisible="{Binding !IsConfirmingKickAll}"
+                  Command="{Binding KickAllCommand}"
+                  Content="{Binding Text[phones.kickAll], Source={x:Static loc:Strings.Instance}}" />
+          <Button Margin="0,0,4,0" Classes="accent"
+                  IsVisible="{Binding IsConfirmingKickAll}"
+                  Command="{Binding KickAllCommand}"
+                  Content="{Binding Text[phones.kickAllConfirm], Source={x:Static loc:Strings.Instance}}" />
+          <Button IsVisible="{Binding IsConfirmingKickAll}"
+                  Command="{Binding CancelKickAllCommand}"
+                  Content="{Binding Text[action.cancel], Source={x:Static loc:Strings.Instance}}" />
+        </StackPanel>
+      </Grid>
+    </HeaderedContentControl>
+  </Grid>
+</UserControl>

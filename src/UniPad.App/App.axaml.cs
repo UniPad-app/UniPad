@@ -42,6 +42,12 @@ public partial class App : Application
         {
             _state = new AppState();
             Strings.Instance.Language = _state.Config.Language;
+
+            // The phone page follows the app language, live.
+            var phones = _state.Phones;
+            phones.SetLanguage(Strings.Instance.Language);
+            Strings.Instance.LanguageChanged += () => phones.SetLanguage(Strings.Instance.Language);
+            
             ApplyTheme(_state.Config.Theme);
 
             _state.Startup();
