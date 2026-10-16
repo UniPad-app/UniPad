@@ -784,6 +784,7 @@ public sealed class AppState : IDisposable
                     // A controller's raw indices mean nothing on a phone: write the phone layout.
                     PhoneLayout.ApplyTo(target, phone);
                     target.Device = phone;
+                    target.ProfileName = null; // the bindings no longer match the linked profile
                 }
 
                 target.DeviceName = Phones.Find(phone)?.Name;

@@ -463,6 +463,7 @@ public sealed class PhoneServer : IDisposable
         PhoneClient? found = null;
         var isNew = false;
         var full = false;
+        PhoneClient? evicted = null;
 
         // Check and insert under one lock, so two phones at once cannot both take the last slot.
         // Nothing is awaited inside the lock.
@@ -479,6 +480,10 @@ public sealed class PhoneServer : IDisposable
                     if (stale is null || !_clients.TryRemove(stale.Key, out _))
                     {
                         full = true;
+                    }
+                    else
+                    {
+                        evicted = stale;
                     }
                 }
 
@@ -501,6 +506,13 @@ public sealed class PhoneServer : IDisposable
                     isNew = true;
                 }
             }
+        }
+
+        // A forgotten phone must not stay attached to a disabled player.
+        if (evicted is not null)
+        {
+            Released?.Invoke(evicted);
+            ClientsChanged?.Invoke();
         }
 
         if (full)
