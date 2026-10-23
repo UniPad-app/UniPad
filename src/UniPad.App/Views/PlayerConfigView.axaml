@@ -134,6 +134,12 @@
       <Setter Property="Foreground" Value="{Binding Brush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+
+    <!-- Every binding group of the body is framed in this player's colour. The header row
+          (device, profile, output type) is outside this scope and keeps the neutral frame. -->
+    <Style Selector="HeaderedContentControl.groupBox" x:DataType="vm:PlayerConfigViewModel">
+      <Setter Property="BorderBrush" Value="{Binding PlayerBrush}" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="6">
@@ -226,12 +232,6 @@
         <Style Selector="TextBlock">
           <Setter Property="FlowDirection" Value="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}" />
           <Setter Property="TextAlignment" Value="Left" />
-        </Style>
-
-        <!-- Every binding group of the body is framed in this player's colour. The header row
-             (device, profile, output type) is outside this scope and keeps the neutral frame. -->
-        <Style Selector="HeaderedContentControl.groupBox" x:DataType="vm:PlayerConfigViewModel">
-          <Setter Property="BorderBrush" Value="{Binding PlayerBrush}" />
         </Style>
       </Grid.Styles>
 
@@ -551,7 +551,7 @@
                     Margin="0,2,0,0">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal" Spacing="4" />
+            <StackPanel Orientation="Horizontal" Spacing="1" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
