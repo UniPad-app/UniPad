@@ -6,6 +6,7 @@ using UniPad.App.Localization;
 using UniPad.App.Services;
 using UniPad.Core.SystemServices;
 using System.Globalization;
+using UniPad.Core.Input;
 
 namespace UniPad.App.ViewModels;
 
@@ -29,6 +30,14 @@ public sealed partial class DeviceDiagnosticsRow : ViewModelBase
 
     [ObservableProperty]
     private string _hatValues = string.Empty;
+
+    /// <summary>Colour of the player using this device, or null when no enabled player has it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlayer))]
+    private IBrush? _playerBrush;
+
+    /// <summary>True while an enabled player uses this device.</summary>
+    public bool HasPlayer => PlayerBrush is not null;
 }
 
 /// <summary>
@@ -573,6 +582,7 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             row.Name = device.Name;
             row.Identifier = device.Id.ToString();
             row.Capabilities = device.CapabilitySummary;
+            row.PlayerBrush = PlayerBrushFor(device.Id);
 
             row.AxisValues = snapshot.Axes.Length == 0
                 ? "-"
@@ -595,5 +605,19 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         }
 
         PollStatistics = FormatPollStatistics(devices.Count);
+    }
+
+    /// <summary>Colour of the first enabled player whose device is <paramref name="id"/>.</summary>
+    private IBrush? PlayerBrushFor(DeviceId id)
+    {
+        foreach (var player in _state.Players)
+        {
+            if (player.Enabled && player.Device == id)
+            {
+                return PlayerColors.Get(player.Index);
+            }
+        }
+
+        return null;
     }
 }

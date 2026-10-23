@@ -9,6 +9,7 @@ using UniPad.Core.Mapping;
 using UniPad.Core.Output;
 using UniPad.Core.Profiles;
 using System.Globalization;
+using Avalonia.Media;
 
 namespace UniPad.App.ViewModels;
 
@@ -213,6 +214,9 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
 
     /// <summary>Tab header text.</summary>
     public string Header => $"{Strings.Get("tab.player")} {PlayerNumber}";
+
+    /// <summary>This player's colour: tab caption, group box frames and the player strip.</summary>
+    public IBrush PlayerBrush => PlayerColors.Get(Mapping.Index);
 
     /// <summary>Caption above the left stick dead zone slider, label and value in one string.</summary>
     public string LeftDeadzoneText => FormatPercent("bind.deadzone", LeftDeadzone);

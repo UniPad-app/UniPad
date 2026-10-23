@@ -8,6 +8,7 @@ using Serilog;
 using UniPad.App.Localization;
 using UniPad.App.Services;
 using UniPad.Core.Network;
+using Avalonia.Media;
 
 namespace UniPad.App.ViewModels;
 
@@ -38,6 +39,14 @@ public sealed partial class PhoneClientRow : ViewModelBase
     [ObservableProperty]
     private bool _isConfirmingKick;
 
+    /// <summary>Colour of the player this phone drives, or null while it waits for one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlayer))]
+    private IBrush? _playerBrush;
+
+    /// <summary>True while the phone is assigned to a player.</summary>
+    public bool HasPlayer => PlayerBrush is not null;
+
     internal PhoneClientRow(PhonesViewModel owner, string key)
     {
         _owner = owner;
@@ -56,6 +65,8 @@ public sealed partial class PhoneClientRow : ViewModelBase
         PlayerText = client.Player >= 0
             ? (client.Player + 1).ToString(CultureInfo.InvariantCulture)
             : "-";
+
+        PlayerBrush = client.Player >= 0 ? PlayerColors.Get(client.Player) : null;
 
         Name = client.Name;
         IsOnline = client.Device.IsConnected;

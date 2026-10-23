@@ -87,31 +87,51 @@
       <Setter Property="Fill" Value="{DynamicResource AccentPressedBrush}" />
     </Style>
     
-    <!-- Player strip under the panel: a square per player, filled while its pad is live, with the
-         player number beneath it. Numbers are dimmed by default and switch to the accent colour
-         for the tab being shown. They carry their own class instead of "caption", so the global
-         caption style cannot override their colour. TextDisabledBrush comes from the palette and
-         has its own value in each theme. -->
-    <Style Selector="StackPanel.playerSlot > Border">
+    <!-- Player strip: one clickable button per player. Square in the player's colour, filled while
+         its pad is live; number dimmed, or in the player's colour for the tab being shown. -->
+    <Style Selector="Button.playerSlot">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="3,2" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.playerSlot:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource TabSelectedBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Button.playerSlot:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+    </Style>
+
+    <Style Selector="Border.slotBox">
       <Setter Property="Width" Value="12" />
       <Setter Property="Height" Value="12" />
       <Setter Property="CornerRadius" Value="1" />
       <Setter Property="BorderThickness" Value="1.2" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Background" Value="Transparent" />
       <Setter Property="HorizontalAlignment" Value="Center" />
     </Style>
-    <Style Selector="StackPanel.playerSlot.connected > Border">
-      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Style Selector="Button.playerSlot:pointerover Border.slotBox">
+      <Setter Property="BorderThickness" Value="2" />
     </Style>
-    <Style Selector="StackPanel.playerSlot > TextBlock.slotNumber">
+
+    <Style Selector="TextBlock.slotNumber">
       <Setter Property="FontSize" Value="12" />
       <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="TextAlignment" Value="Center" />
     </Style>
-    <Style Selector="StackPanel.playerSlot.current > TextBlock.slotNumber">
-      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    <Style Selector="Button.playerSlot:pointerover TextBlock.slotNumber">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <!-- Declared last so the current number keeps its colour under the pointer too. -->
+    <Style Selector="Button.playerSlot.current TextBlock.slotNumber" x:DataType="vm:PlayerSlotIndicator">
+      <Setter Property="Foreground" Value="{Binding Brush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
   </UserControl.Styles>
@@ -206,6 +226,12 @@
         <Style Selector="TextBlock">
           <Setter Property="FlowDirection" Value="{Binding TextFlowDirection, Source={x:Static loc:Strings.Instance}}" />
           <Setter Property="TextAlignment" Value="Left" />
+        </Style>
+
+        <!-- Every binding group of the body is framed in this player's colour. The header row
+             (device, profile, output type) is outside this scope and keeps the neutral frame. -->
+        <Style Selector="HeaderedContentControl.groupBox" x:DataType="vm:PlayerConfigViewModel">
+          <Setter Property="BorderBrush" Value="{Binding PlayerBrush}" />
         </Style>
       </Grid.Styles>
 
@@ -518,17 +544,11 @@
                 Content="{Binding Text[action.identify], Source={x:Static loc:Strings.Instance}}" />
       </StackPanel>
 
-      <!-- Player strip. It spans the whole row rather than sitting in the middle column: that
-           column's centre moves with the widths of the button and option groups, which differ
-           between the two languages. The body columns either side of the diagram are both 228
-           wide, so the centre of the row is exactly the centre of the controller picture. It
-           ignores the pointer, so it never covers the buttons beneath its span. -->
       <ItemsControl Grid.Column="0" Grid.ColumnSpan="3"
                     ItemsSource="{Binding PlayerSlots}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Margin="0,2,0,0"
-                    IsHitTestVisible="False">
+                    Margin="0,2,0,0">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" Spacing="4" />
@@ -536,12 +556,16 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="vm:PlayerSlotIndicator">
-            <StackPanel Classes="playerSlot" Spacing="1" MinWidth="14"
-                        Classes.connected="{Binding IsConnected}"
-                        Classes.current="{Binding IsCurrent}">
-              <Border />
-              <TextBlock Classes="slotNumber" Text="{Binding Caption}" />
-            </StackPanel>
+            <Button Classes="playerSlot"
+                    Classes.current="{Binding IsCurrent}"
+                    Command="{Binding SelectCommand}">
+              <StackPanel Spacing="1" MinWidth="14">
+                <Border Classes="slotBox"
+                        BorderBrush="{Binding Brush}"
+                        Background="{Binding BoxFill}" />
+                <TextBlock Classes="slotNumber" Text="{Binding Caption}" />
+              </StackPanel>
+            </Button>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

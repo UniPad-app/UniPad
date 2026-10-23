@@ -71,7 +71,7 @@
                   ItemsSource="{Binding AllTabs}">
         <TabControl.ItemTemplate>
           <DataTemplate DataType="vm:TabDescriptor">
-            <TextBlock Text="{Binding Header}" />
+            <TextBlock Text="{Binding Header}" Foreground="{Binding Brush}" />
           </DataTemplate>
         </TabControl.ItemTemplate>
         <TabControl.ContentTemplate>

@@ -150,13 +150,14 @@
   -->
   <Style Selector="HeaderedContentControl.groupBox">
     <Setter Property="Margin" Value="3" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
           <!-- Frame: starts half a caption chip down, so the chip sits on its top edge. -->
           <Border Margin="{DynamicResource GroupBoxFrameOffset}"
                   Background="{DynamicResource PanelBackgroundBrush}"
-                  BorderBrush="{DynamicResource BorderBrush}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="1"
                   CornerRadius="{DynamicResource StandardCornerRadius}" />
 
@@ -181,7 +182,7 @@
               <Border Height="{DynamicResource GroupBoxCaptionOutlineHeight}"
                       VerticalAlignment="Top"
                       Background="Transparent"
-                      BorderBrush="{DynamicResource BorderBrush}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
                       BorderThickness="1,1,1,0"
                       CornerRadius="{DynamicResource GroupBoxCaptionCornerRadius}" />
 
@@ -334,6 +335,7 @@
     <Setter Property="MinHeight" Value="26" />
     <Setter Property="Margin" Value="0,0,1,0" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
@@ -440,6 +442,15 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="{DynamicResource StandardCornerRadius}" />
     <Setter Property="Padding" Value="10,6" />
+  </Style>
+
+  <!-- Device rows (Advanced monitor, Phones list): framed in the colour of the player using them. -->
+  <Style Selector="Border.deviceRow">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+  </Style>
+  <Style Selector="Border.deviceRow.assigned">
+    <Setter Property="BorderBrush" Value="{ReflectionBinding PlayerBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
   </Style>
 
   <!-- ============ ScrollViewer ============ -->

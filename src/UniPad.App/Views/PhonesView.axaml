@@ -100,7 +100,7 @@
           <ItemsControl ItemsSource="{Binding Clients}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="vm:PhoneClientRow">
-                <Border Classes="banner" Margin="0,0,0,3" BorderBrush="{DynamicResource BorderBrush}">
+                <Border Classes="banner deviceRow" Classes.assigned="{Binding HasPlayer}" Margin="0,0,0,3">
                   <Grid ColumnDefinitions="56,*,96,72,190">
 
                     <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"

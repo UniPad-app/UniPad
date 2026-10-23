@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using UniPad.App.Localization;
 using UniPad.App.Services;
 using UniPad.Core.Output;
+using Avalonia.Media;
 
 namespace UniPad.App.ViewModels;
 
@@ -65,7 +66,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _state = state;
         _capture = new BindCaptureService(state.Input, state.KeyboardMouse);
 
-        PlayerSlots = state.Players.Select(m => new PlayerSlotIndicator(m.Index + 1)).ToArray();
+        PlayerSlots = state.Players.Select(m => new PlayerSlotIndicator(m.Index + 1, SelectPlayer)).ToArray();
 
         foreach (var mapping in state.Players)
         {
@@ -81,7 +82,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         foreach (var player in Players)
         {
-            AllTabs.Add(new TabDescriptor(player.Header, player));
+            AllTabs.Add(new TabDescriptor(player.Header, player, player.PlayerBrush));
         }
 
         // Captions produced in code rather than bound - tab headers, the device picker entries and
@@ -274,7 +275,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         AllTabs.Clear();
         foreach (var player in Players)
         {
-            AllTabs.Add(new TabDescriptor(player.Header, player));
+            AllTabs.Add(new TabDescriptor(player.Header, player, player.PlayerBrush));
         }
 
         SelectedTabIndex = Math.Clamp(selected, 0, AllTabs.Count - 1);
@@ -617,9 +618,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             PlayerSlots[i].IsCurrent = i == SelectedTabIndex;
         }
     }
+    
+    /// <summary>A square of the player strip was clicked: show that player's tab.</summary>
+    private void SelectPlayer(int index)
+    {
+        if ((uint)index >= (uint)AllTabs.Count) return;
+        SelectedCategoryIndex = 0;
+        SelectedTabIndex = index;
+    }
 }
 
 /// <summary>One entry in the top-level tab strip.</summary>
 /// <param name="Header">Tab caption.</param>
 /// <param name="Content">View model rendered inside the tab.</param>
-public sealed record TabDescriptor(string Header, object Content);
+/// <param name="Brush">The player's colour, used for the tab caption.</param>
+public sealed record TabDescriptor(string Header, object Content, IBrush Brush);
