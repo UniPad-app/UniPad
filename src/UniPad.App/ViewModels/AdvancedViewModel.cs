@@ -36,6 +36,13 @@ public sealed partial class DeviceDiagnosticsRow : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasPlayer), nameof(PlayerFillBrush))]
     private IBrush? _playerBrush;
 
+    /// <summary>
+    /// Number of the player using this device, shown at the row's leading edge in the player's
+    /// colour; "-" while no enabled player has it. Matches the column the Phones list shows.
+    /// </summary>
+    [ObservableProperty]
+    private string _playerText = "-";
+
     /// <summary>True while an enabled player uses this device.</summary>
     public bool HasPlayer => PlayerBrush is not null;
 
@@ -589,7 +596,12 @@ public sealed partial class AdvancedViewModel : ViewModelBase
             row.Name = device.Name;
             row.Identifier = device.Id.ToString();
             row.Capabilities = device.CapabilitySummary;
-            row.PlayerBrush = PlayerBrushFor(device.Id);
+
+            var playerIndex = PlayerIndexFor(device.Id);
+            row.PlayerBrush = playerIndex < 0 ? null : PlayerColors.Get(playerIndex);
+            row.PlayerText = playerIndex < 0
+                ? "-"
+                : (playerIndex + 1).ToString(CultureInfo.InvariantCulture);
 
             row.AxisValues = snapshot.Axes.Length == 0
                 ? "-"
@@ -614,17 +626,17 @@ public sealed partial class AdvancedViewModel : ViewModelBase
         PollStatistics = FormatPollStatistics(devices.Count);
     }
 
-    /// <summary>Colour of the first enabled player whose device is <paramref name="id"/>.</summary>
-    private IBrush? PlayerBrushFor(DeviceId id)
+    /// <summary>Zero-based slot of the first enabled player whose device is <paramref name="id"/>, or -1.</summary>
+    private int PlayerIndexFor(DeviceId id)
     {
         foreach (var player in _state.Players)
         {
             if (player.Enabled && player.Device == id)
             {
-                return PlayerColors.Get(player.Index);
+                return player.Index;
             }
         }
 
-        return null;
+        return -1;
     }
 }

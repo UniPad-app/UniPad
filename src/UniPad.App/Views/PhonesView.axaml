@@ -9,6 +9,17 @@
              x:Class="UniPad.App.Views.PhonesView"
              x:DataType="vm:PhonesViewModel">
 
+  <UserControl.Styles>
+    <!--
+      The player-number cell takes the owning player's colour while the phone is assigned.
+      The selector only matches inside an assigned row, so the "-" of an unassigned phone
+      keeps the normal text colour instead of receiving a null brush.
+    -->
+    <Style Selector="Border.deviceRow.assigned TextBlock.playerNumber" x:DataType="vm:PhoneClientRow">
+      <Setter Property="Foreground" Value="{Binding PlayerBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <!--
     Phones page: the in-app version of the /admin web page. The left column is everything a new
     phone needs to join (QR code, link, server state); the right column lists the phones already
@@ -103,7 +114,7 @@
                 <Border Classes="banner deviceRow" Classes.assigned="{Binding HasPlayer}" Margin="0,0,0,3">
                   <Grid ColumnDefinitions="56,*,96,72,190">
 
-                    <TextBlock Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="0" Classes="playerNumber" FontWeight="SemiBold" VerticalAlignment="Center"
                                Text="{Binding PlayerText}" />
 
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"

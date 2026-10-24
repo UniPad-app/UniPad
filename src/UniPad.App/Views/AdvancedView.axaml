@@ -141,14 +141,25 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="vm:DeviceDiagnosticsRow">
               <Border Classes="banner deviceRow" Classes.assigned="{Binding HasPlayer}" Margin="0,0,0,3">
-                <StackPanel Spacing="1">
-                  <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Classes="caption" Text="{Binding Identifier}" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Classes="caption" Text="{Binding Capabilities}" />
-                  <TextBlock Classes="mono" Text="{Binding AxisValues}" TextWrapping="Wrap" />
-                  <TextBlock Classes="mono" Text="{Binding ButtonValues}" TextWrapping="Wrap" />
-                  <TextBlock Classes="mono" Text="{Binding HatValues}" TextWrapping="Wrap" />
-                </StackPanel>
+                <Grid ColumnDefinitions="Auto,*">
+                  <!-- Number of the player that owns this device, in the player's colour like the
+                       current slot number on the config page. The Auto column collapses together
+                       with the badge, so unassigned rows keep the full width for their details. -->
+                  <TextBlock Grid.Column="0" FontWeight="SemiBold"
+                             VerticalAlignment="Top" Margin="0,0,10,0"
+                             IsVisible="{Binding HasPlayer}"
+                             Foreground="{Binding PlayerBrush}"
+                             Text="{Binding PlayerText}" />
+
+                  <StackPanel Grid.Column="1" Spacing="1">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="caption" Text="{Binding Identifier}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="caption" Text="{Binding Capabilities}" />
+                    <TextBlock Classes="mono" Text="{Binding AxisValues}" TextWrapping="Wrap" />
+                    <TextBlock Classes="mono" Text="{Binding ButtonValues}" TextWrapping="Wrap" />
+                    <TextBlock Classes="mono" Text="{Binding HatValues}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
               </Border>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
