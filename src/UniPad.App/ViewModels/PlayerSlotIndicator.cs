@@ -17,8 +17,11 @@ public sealed partial class PlayerSlotIndicator(int number, Action<int> select) 
     /// <summary>The number as text, in Latin digits in both languages like the rest of the panel.</summary>
     public string Caption { get; } = number.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>This player's colour.</summary>
-    public IBrush Brush { get; } = PlayerColors.Get(number - 1);
+    /// <summary>
+    /// This player's colour, re-read from the palette <see cref="PlayerColors"/> holds for the
+    /// active theme variant. Colours the square outline and, while the tab is current, the number.
+    /// </summary>
+    public IBrush Brush => PlayerColors.Get(Number - 1);
 
     /// <summary>Square fill: the player's colour while connected, empty otherwise.</summary>
     public IBrush BoxFill => IsConnected ? Brush : Brushes.Transparent;
@@ -35,4 +38,14 @@ public sealed partial class PlayerSlotIndicator(int number, Action<int> select) 
     /// <summary>Opens this player's tab.</summary>
     [RelayCommand]
     private void Select() => select(Number - 1);
+
+    /// <summary>
+    /// Re-announces the colour-dependent properties after a theme flip, so the square outline,
+    /// its fill and the highlighted number re-read <see cref="Brush"/> in the new palette.
+    /// </summary>
+    public void RefreshColors()
+    {
+        OnPropertyChanged(nameof(Brush));
+        OnPropertyChanged(nameof(BoxFill));
+    }
 }

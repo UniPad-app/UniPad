@@ -66,6 +66,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _state = state;
         _capture = new BindCaptureService(state.Input, state.KeyboardMouse);
 
+        // The player colours are picked per theme variant, so the active one is set before
+        // anything that draws in a player colour is created - the strip squares read it below.
+        PlayerColors.SetLightTheme(string.Equals(state.Config.Theme, "Light", StringComparison.OrdinalIgnoreCase));
+
         PlayerSlots = state.Players.Select(m => new PlayerSlotIndicator(m.Index + 1, SelectPlayer)).ToArray();
 
         foreach (var mapping in state.Players)
@@ -79,6 +83,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         // against the other palette before the variant itself is applied by App.
         Advanced.ThemeRequested += theme =>
         {
+            PlayerColors.SetLightTheme(string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase));
+
+            // The group box frames and the strip squares read PlayerColors through computed
+            // properties; re-announcing them here makes the bindings re-read the new palette.
+            foreach (var slot in PlayerSlots)
+            {
+                slot.RefreshColors();
+            }
+
+            foreach (var player in Players)
+            {
+                player.RefreshColors();
+            }
+
             RebuildTabs();
             ThemeChangeRequested?.Invoke(theme);
         };
@@ -266,22 +284,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Rebuilds the tab strip from the current players.
     /// <para>
     /// <see cref="TabDescriptor"/> is an immutable record, so the collection is rebuilt rather
-    /// than mutated per item - the same path the language change takes. The caption colour is
-    /// picked for the configured theme: the bright palette on dark, the darkened text variants
-    /// on light, where the bright colours lose their contrast on the grey strip.
+    /// than mutated per item - the same path the language change takes. The caption colour comes
+    /// from <see cref="PlayerColors.Get"/>, which is already picked for the active theme variant.
     /// </para>
     /// </summary>
     private void RebuildTabs()
     {
-        var light = string.Equals(_state.Config.Theme, "Light", StringComparison.OrdinalIgnoreCase);
-
         var selected = SelectedTabIndex;
 
         AllTabs.Clear();
         foreach (var player in Players)
         {
-            AllTabs.Add(new TabDescriptor(player.Header, player,
-                PlayerColors.GetText(player.Mapping.Index, light)));
+            AllTabs.Add(new TabDescriptor(player.Header, player, PlayerColors.Get(player.Mapping.Index)));
         }
 
         SelectedTabIndex = Math.Clamp(selected, 0, AllTabs.Count - 1);

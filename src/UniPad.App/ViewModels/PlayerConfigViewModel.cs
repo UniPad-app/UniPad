@@ -218,6 +218,13 @@ public sealed partial class PlayerConfigViewModel : ViewModelBase
     /// <summary>This player's colour: tab caption, group box frames and the player strip.</summary>
     public IBrush PlayerBrush => PlayerColors.Get(Mapping.Index);
 
+    /// <summary>
+    /// Re-announces the player colour after a theme flip. The property is computed from the
+    /// palette <see cref="PlayerColors"/> holds for the active variant, so raising the change is
+    /// all the group box frame bindings need to re-read it in the new colours.
+    /// </summary>
+    public void RefreshColors() => OnPropertyChanged(nameof(PlayerBrush));
+
     /// <summary>Caption above the left stick dead zone slider, label and value in one string.</summary>
     public string LeftDeadzoneText => FormatPercent("bind.deadzone", LeftDeadzone);
 
