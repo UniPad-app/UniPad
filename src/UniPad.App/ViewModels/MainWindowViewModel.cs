@@ -74,16 +74,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         Advanced = new AdvancedViewModel(state);
-        Advanced.ThemeRequested += theme => ThemeChangeRequested?.Invoke(theme);
+
+        // Tab captions are coloured per player, so when the theme flips the strip is rebuilt
+        // against the other palette before the variant itself is applied by App.
+        Advanced.ThemeRequested += theme =>
+        {
+            RebuildTabs();
+            ThemeChangeRequested?.Invoke(theme);
+        };
         Phones = new PhonesViewModel(state);
         About = new AboutViewModel(state);
         // After an update the new executable is already on disk; exiting hands control to it.
         About.RestartRequested += () => ExitRequested?.Invoke();
 
-        foreach (var player in Players)
-        {
-            AllTabs.Add(new TabDescriptor(player.Header, player, player.PlayerBrush));
-        }
+        RebuildTabs();
 
         // Captions produced in code rather than bound - tab headers, the device picker entries and
         // the bind button captions - have to be rebuilt when the user switches language.
@@ -259,26 +263,42 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             : $"{Strings.Get(_statusKey!)} {Strings.Isolate(_statusDetail)}";
 
     /// <summary>
-    /// Rebuilds every caption that was produced in code after a language change.
+    /// Rebuilds the tab strip from the current players.
     /// <para>
-    /// The bound captions refresh themselves now, but strings that were formatted once and stored
-    /// would otherwise keep the previous language: the tab headers, the entries of each device
-    /// picker, the "[not set]" text on every bind button, the banner text, the status summary and
-    /// the status line itself. The tab collection is rebuilt rather than mutated per item because
-    /// <see cref="TabDescriptor"/> is an immutable record.
+    /// <see cref="TabDescriptor"/> is an immutable record, so the collection is rebuilt rather
+    /// than mutated per item - the same path the language change takes. The caption colour is
+    /// picked for the configured theme: the bright palette on dark, the darkened text variants
+    /// on light, where the bright colours lose their contrast on the grey strip.
     /// </para>
     /// </summary>
-    private void OnLanguageChanged()
+    private void RebuildTabs()
     {
+        var light = string.Equals(_state.Config.Theme, "Light", StringComparison.OrdinalIgnoreCase);
+
         var selected = SelectedTabIndex;
 
         AllTabs.Clear();
         foreach (var player in Players)
         {
-            AllTabs.Add(new TabDescriptor(player.Header, player, player.PlayerBrush));
+            AllTabs.Add(new TabDescriptor(player.Header, player,
+                PlayerColors.GetText(player.Mapping.Index, light)));
         }
 
         SelectedTabIndex = Math.Clamp(selected, 0, AllTabs.Count - 1);
+    }
+
+    /// <summary>
+    /// Rebuilds every caption that was produced in code after a language change.
+    /// <para>
+    /// The bound captions refresh themselves now, but strings that were formatted once and stored
+    /// would otherwise keep the previous language: the tab headers, the entries of each device
+    /// picker, the "[not set]" text on every bind button, the banner text, the status summary and
+    /// the status line itself.
+    /// </para>
+    /// </summary>
+    private void OnLanguageChanged()
+    {
+        RebuildTabs();
 
         foreach (var player in Players)
         {
