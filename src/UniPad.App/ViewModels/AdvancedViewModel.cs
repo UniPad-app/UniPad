@@ -33,11 +33,18 @@ public sealed partial class DeviceDiagnosticsRow : ViewModelBase
 
     /// <summary>Colour of the player using this device, or null when no enabled player has it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPlayer))]
+    [NotifyPropertyChangedFor(nameof(HasPlayer), nameof(PlayerFillBrush))]
     private IBrush? _playerBrush;
 
     /// <summary>True while an enabled player uses this device.</summary>
     public bool HasPlayer => PlayerBrush is not null;
+
+    /// <summary>
+    /// Faint tint of this row's player colour, painted inside the frame while a player is
+    /// assigned, so the connected device reads at a glance in both theme variants. Derived from
+    /// <see cref="PlayerBrush"/>, so it always matches the frame and follows the theme with it.
+    /// </summary>
+    public IBrush? PlayerFillBrush => PlayerColors.ToFill(PlayerBrush);
 }
 
 /// <summary>

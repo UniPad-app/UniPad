@@ -41,11 +41,18 @@ public sealed partial class PhoneClientRow : ViewModelBase
 
     /// <summary>Colour of the player this phone drives, or null while it waits for one.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPlayer))]
+    [NotifyPropertyChangedFor(nameof(HasPlayer), nameof(PlayerFillBrush))]
     private IBrush? _playerBrush;
 
     /// <summary>True while the phone is assigned to a player.</summary>
     public bool HasPlayer => PlayerBrush is not null;
+
+    /// <summary>
+    /// Faint tint of this row's player colour, painted inside the frame while the phone is
+    /// assigned, so it reads at a glance in both theme variants. Derived from
+    /// <see cref="PlayerBrush"/>, so it always matches the frame and follows the theme with it.
+    /// </summary>
+    public IBrush? PlayerFillBrush => PlayerColors.ToFill(PlayerBrush);
 
     internal PhoneClientRow(PhonesViewModel owner, string key)
     {

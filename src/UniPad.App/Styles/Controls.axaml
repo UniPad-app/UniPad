@@ -445,13 +445,19 @@
     <Setter Property="Padding" Value="10,6" />
   </Style>
 
-  <!-- Device rows (Advanced monitor, Phones list): framed in the colour of the player using them. -->
+  <!--
+    Device rows (Advanced monitor, Phones list): framed in the colour of the player using them.
+    The assigned state also tints the row's inside with a translucent variant of that colour -
+    PlayerColors.ToFill derives it straight from PlayerBrush - so the connected device stands
+    out at a glance, on the light theme's pale panels most of all.
+  -->
   <Style Selector="Border.deviceRow">
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
   </Style>
   <Style Selector="Border.deviceRow.assigned">
     <Setter Property="BorderBrush" Value="{ReflectionBinding PlayerBrush}" />
     <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="Background" Value="{ReflectionBinding PlayerFillBrush}" />
   </Style>
 
   <!-- ============ ScrollViewer ============ -->

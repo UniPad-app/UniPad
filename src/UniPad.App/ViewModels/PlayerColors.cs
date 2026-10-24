@@ -48,4 +48,20 @@ public static class PlayerColors
         (uint)index < DarkPalette.Length
             ? (_light ? LightPalette[index] : DarkPalette[index])
             : Brushes.Gray;
+
+    // How faint the inside of an assigned device's frame is tinted: about 12% of the player
+    // colour, enough to pick the row out at a glance while staying far below the frame and
+    // text contrast, in both variants.
+    private const byte FillAlpha = 30;
+
+    /// <summary>
+    /// Translucent variant of a player colour, for painting the background of a device row that
+    /// belongs to that player. Takes whatever brush the caller already holds, so the tint always
+    /// derives from the same colour as the frame; anything non-solid returns null, which keeps
+    /// the panel background of an unassigned row.
+    /// </summary>
+    public static IBrush? ToFill(IBrush? brush) =>
+        brush is ISolidColorBrush solid
+            ? new ImmutableSolidColorBrush(new Color(FillAlpha, solid.Color.R, solid.Color.G, solid.Color.B))
+            : null;
 }
