@@ -135,8 +135,8 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- Every binding group of the body is framed in this player's colour. The header row
-          (device, profile, output type) is outside this scope and keeps the neutral frame. -->
+    <!-- Every group box on the page - the header row (device, profile, output type) included -
+         is framed in this player's colour. -->
     <Style Selector="HeaderedContentControl.groupBox" x:DataType="vm:PlayerConfigViewModel">
       <Setter Property="BorderBrush" Value="{Binding PlayerBrush}" />
     </Style>

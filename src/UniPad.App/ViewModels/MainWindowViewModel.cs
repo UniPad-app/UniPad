@@ -97,6 +97,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 player.RefreshColors();
             }
 
+            // Phone rows read PlayerColors in their own refresh cycle, which only runs while the
+            // page is visible; refresh now so opening it never shows the previous palette.
+            Phones.Refresh();
+
             RebuildTabs();
             ThemeChangeRequested?.Invoke(theme);
         };
