@@ -29,6 +29,16 @@ If a game only speaks XInput, UniPad makes your hardware speak XInput.
 > colour for every player, and a clickable player strip.
 > See the [release notes](../../releases/latest).
 
+## Watch the demo
+
+<div align="center">
+
+[![Watch the UniPad demo on YouTube](https://img.youtube.com/vi/Tu7QjqXIcI0/maxresdefault.jpg)](https://www.youtube.com/watch?v=Tu7QjqXIcI0)
+
+<em>Click the thumbnail to watch the full walkthrough on YouTube.</em>
+
+</div>
+
 ## Contents
 
 - [Quick start](#quick-start-for-regular-users)
