@@ -1,0 +1,109 @@
+=== baseline-build.log ===
+
+Welcome to .NET 9.0!
+---------------------
+SDK Version: 9.0.320
+
+Telemetry
+---------
+The .NET tools collect usage data in order to help us improve your experience. It is collected by Microsoft and shared with the community. You can opt-out of telemetry by setting the DOTNET_CLI_TELEMETRY_OPTOUT environment variable to '1' or 'true' using your favorite shell.
+
+Read more about .NET CLI Tools telemetry: https://aka.ms/dotnet-cli-telemetry
+
+----------------
+Installed an ASP.NET Core HTTPS development certificate.
+To trust the certificate, run 'dotnet dev-certs https --trust'
+Learn about HTTPS: https://aka.ms/dotnet-https
+
+----------------
+Write your first app: https://aka.ms/dotnet-hello-world
+Find out what's new: https://aka.ms/dotnet-whats-new
+Explore documentation: https://aka.ms/dotnet-docs
+Report issues and find source on GitHub: https://github.com/dotnet/core
+Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
+--------------------------------------------------------------------------------------
+  Determining projects to restore...
+  Restored /home/user/webapp/UniPad/src/UniPad.Core/UniPad.Core.csproj (in 7.07 sec).
+  Restored /home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj (in 13.77 sec).
+  UniPad.Core -> /home/user/webapp/UniPad/src/UniPad.Core/bin/Release/net9.0/UniPad.Core.dll
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+  UniPad.App -> /home/user/webapp/UniPad/src/UniPad.App/bin/Release/net9.0/UniPad.dll
+
+Build succeeded.
+
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:32.26
+
+
+=== optimized-build.log ===
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  UniPad.Core -> /home/user/webapp/UniPad/src/UniPad.Core/bin/Release/net9.0/UniPad.Core.dll
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+  UniPad.App -> /home/user/webapp/UniPad/src/UniPad.App/bin/Release/net9.0/UniPad.dll
+
+Build succeeded.
+
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:05.49
+
+
+=== final-build.log ===
+  Determining projects to restore...
+  Restored /home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj (in 391 ms).
+  Restored /home/user/webapp/UniPad/src/UniPad.Core/UniPad.Core.csproj (in 390 ms).
+  UniPad.Core -> /home/user/webapp/UniPad/src/UniPad.Core/bin/Release/net9.0/UniPad.Core.dll
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+  UniPad.App -> /home/user/webapp/UniPad/src/UniPad.App/bin/Release/net9.0/UniPad.dll
+
+Build succeeded.
+
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:07.49
+
+
+=== windows-publish.log ===
+  Determining projects to restore...
+  Restored /home/user/webapp/UniPad/src/UniPad.Core/UniPad.Core.csproj (in 4.16 sec).
+  Restored /home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj (in 4.19 sec).
+  UniPad.Core -> /home/user/webapp/UniPad/src/UniPad.Core/bin/Release/net9.0/UniPad.Core.dll
+/home/user/webapp/UniPad/src/UniPad.App/ViewModels/MainWindowViewModel.cs(102,13): warning CS8602: Dereference of a possibly null reference. [/home/user/webapp/UniPad/src/UniPad.App/UniPad.App.csproj]
+  UniPad.App -> /home/user/webapp/UniPad/src/UniPad.App/bin/Release/net9.0/win-x64/UniPad.dll
+  UniPad.App -> /home/user/webapp/UniPad/artifacts/win-x64/
+
+
+=== perf-baseline-build.log ===
+  Determining projects to restore...
+  Restored /home/user/webapp/UniPad/tests/UniPad.Performance/UniPad.Performance.csproj (in 508 ms).
+  1 of 2 projects are up-to-date for restore.
+  UniPad.Core -> /home/user/webapp/UniPad/artifacts/baseline/UniPad.Core.dll
+  UniPad.Performance -> /home/user/webapp/UniPad/artifacts/baseline/UniPad.Performance.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.95
+
+
+=== perf-optimized-build.log ===
+  Determining projects to restore...
+  Restored /home/user/webapp/UniPad/tests/UniPad.Performance/UniPad.Performance.csproj (in 499 ms).
+  1 of 2 projects are up-to-date for restore.
+  UniPad.Core -> /home/user/webapp/UniPad/artifacts/optimized/UniPad.Core.dll
+  UniPad.Performance -> /home/user/webapp/UniPad/artifacts/optimized/UniPad.Performance.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.83
