@@ -23,7 +23,10 @@ public readonly record struct DeviceChangedEventArgs(InputDevice Device, bool Ad
 public sealed unsafe class SdlInputBackend : IDisposable
 {
     private readonly ConcurrentDictionary<uint, InputDevice> _byInstanceId = new();
-    private readonly ConcurrentDictionary<string, InputDevice> _byDeviceId = new();
+    private readonly ConcurrentDictionary<DeviceId, InputDevice> _byDeviceId = new();
+
+    // Rebuilt only on topology changes under _sdlLock, never on the high-rate read path.
+    private InputDevice[] _pollDevices = [];
 
     /// <summary>
     /// Instance ids belonging to ViGEm pads we created ourselves. See section 4.6 of the design
@@ -313,10 +316,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
         var hatCount = SDL3.SDL_GetNumJoystickHats(joystick);
 
         // Reuse the record for a returning device so bindings keep working after a reconnect.
-        if (!_byDeviceId.TryGetValue(deviceId.ToString(), out var device))
+        if (!_byDeviceId.TryGetValue(deviceId, out var device))
         {
             device = new InputDevice { Id = deviceId };
-            _byDeviceId[deviceId.ToString()] = device;
+            _byDeviceId[deviceId] = device;
         }
 
         device.InstanceId = instanceId;
@@ -349,6 +352,7 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
 
         _byInstanceId[instanceId] = device;
+        RefreshPollDevices();
 
         Log.Information(
             "Device connected: {Name} [{Id}] {Caps}",
@@ -461,6 +465,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
 
         device.IsConnected = false;
+        if (!device.IsVirtual)
+        {
+            RefreshPollDevices();
+        }
         device.Snapshot.Reset();
         _virtualInstanceIds.TryRemove(instanceId, out _);
 
@@ -470,6 +478,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
             DeviceChanged?.Invoke(new DeviceChangedEventArgs(device, false));
         }
     }
+
+    private void RefreshPollDevices() =>
+        _pollDevices = _byInstanceId.Values
+            .Where(d => d.IsConnected && !d.IsVirtual).ToArray();
 
     private void PollLoop(CancellationToken token)
     {
@@ -501,12 +513,9 @@ public sealed unsafe class SdlInputBackend : IDisposable
                     DrainEvents();
                     SDL3.SDL_UpdateJoysticks();
 
-                    foreach (var device in _byInstanceId.Values)
+                    foreach (var device in _pollDevices)
                     {
-                        if (device.IsConnected && !device.IsVirtual)
-                        {
-                            ReadDevice(device);
-                        }
+                        ReadDevice(device);
                     }
                 }
 
@@ -604,7 +613,7 @@ public sealed unsafe class SdlInputBackend : IDisposable
             return null;
         }
 
-        var device = _byDeviceId.GetValueOrDefault(id.ToString());
+        var device = _byDeviceId.GetValueOrDefault(id);
         return device ?? (id.IsSynthetic ? SyntheticResolver?.Invoke(id) : null);
     }
 
