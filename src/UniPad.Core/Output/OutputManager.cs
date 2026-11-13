@@ -30,6 +30,7 @@ public sealed class OutputManager : IDisposable
     private readonly MappingEngine[] _engines = new MappingEngine[MaxPlayers];
     private readonly PadState[] _states = new PadState[MaxPlayers];
     private readonly object _lock = new();
+    private readonly Func<string, int> _strengthLookup;
 
     private ViGEmClient? _client;
     private bool _driverAvailable;
@@ -46,6 +47,7 @@ public sealed class OutputManager : IDisposable
     {
         _input = input;
         _feedback = new FeedbackRouter(input);
+        _strengthLookup = GetStrengthForDeviceKey;
 
         for (var i = 0; i < MaxPlayers; i++)
         {
@@ -265,7 +267,7 @@ public sealed class OutputManager : IDisposable
                 pad.Submit(in _states[i]);
             }
 
-            _feedback.FlushPending(GetStrengthForDeviceKey);
+            _feedback.FlushPending(_strengthLookup);
         }
         finally
         {
