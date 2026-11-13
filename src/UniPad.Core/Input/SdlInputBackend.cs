@@ -473,13 +473,26 @@ public sealed unsafe class SdlInputBackend : IDisposable
 
     private void PollLoop(CancellationToken token)
     {
+        using var waiter = new PollDeadlineWaiter();
         var stopwatch = Stopwatch.StartNew();
         var frequency = Stopwatch.Frequency;
+        var nextDeadline = stopwatch.ElapsedTicks;
+        var previousRate = _pollRateHz;
 
         while (!token.IsCancellationRequested)
         {
             var cycleStart = stopwatch.ElapsedTicks;
-            var intervalTicks = frequency / Math.Max(_pollRateHz, 1);
+            var rate = _pollRateHz;
+            var intervalTicks = frequency / Math.Max(rate, 1);
+
+            // Absolute deadlines compensate normal scheduler overshoot instead of adding it
+            // to every interval. Skip missed periods after a stall; never replay a backlog.
+            if (rate != previousRate || cycleStart - nextDeadline >= intervalTicks)
+            {
+                nextDeadline = cycleStart;
+            }
+            previousRate = rate;
+            nextDeadline += intervalTicks;
 
             try
             {
@@ -510,37 +523,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
 
             var elapsed = stopwatch.ElapsedTicks - cycleStart;
             _lastLoopMicroseconds = elapsed * 1_000_000.0 / frequency;
-            PreciseWait(stopwatch, cycleStart + intervalTicks, frequency);
+            waiter.WaitUntil(stopwatch, nextDeadline, frequency);
         }
 
         Log.Information("Polling thread exiting after {Count} cycles", PollCount);
-    }
-
-    /// <summary>
-    /// Hybrid wait: coarse sleeps while there is plenty of time left, then a spin for the final
-    /// stretch. Thread.Sleep alone has ~15 ms granularity which would cap the rate around 60 Hz.
-    /// </summary>
-    private static void PreciseWait(Stopwatch stopwatch, long targetTicks, long frequency)
-    {
-        var oneMillisecondTicks = frequency / 1000;
-
-        while (true)
-        {
-            var remaining = targetTicks - stopwatch.ElapsedTicks;
-            if (remaining <= 0)
-            {
-                return;
-            }
-
-            if (remaining > oneMillisecondTicks * 2)
-            {
-                Thread.Sleep(1);
-            }
-            else
-            {
-                Thread.SpinWait(40);
-            }
-        }
     }
 
     private void DrainEvents()
