@@ -65,6 +65,9 @@ public sealed class PhoneServer : IDisposable
     private const int MinPressMs = 40;
 
     private readonly ConcurrentDictionary<string, PhoneClient> _clients = new();
+    // Immutable topology snapshot, published under _admitLock only on add/remove.
+    // Includes offline phones so stale neutralisation and reconnect semantics stay unchanged.
+    private PhoneClient[] _pollClients = [];
     private readonly Dictionary<string, string> _pages = new();
     private readonly object _admitLock = new();
     private static readonly TimeSpan AddressCacheTime = TimeSpan.FromSeconds(30);
@@ -294,7 +297,7 @@ public sealed class PhoneServer : IDisposable
         var now = Stopwatch.GetTimestamp();
         var staleTicks = Stopwatch.Frequency * StaleMs / 1000;
 
-        foreach (var client in _clients.Values)
+        foreach (var client in Volatile.Read(ref _pollClients))
         {
             var snapshot = client.Device.Snapshot;
             lock (client.Gate)
@@ -505,6 +508,8 @@ public sealed class PhoneServer : IDisposable
                     _clients[key] = found;
                     isNew = true;
                 }
+
+                Volatile.Write(ref _pollClients, _clients.Values.ToArray());
             }
         }
 
@@ -588,7 +593,13 @@ public sealed class PhoneServer : IDisposable
 
     public async Task KickAsync(string key)
     {
-        if (!_clients.TryRemove(key, out var client)) return;
+        PhoneClient client;
+        lock (_admitLock)
+        {
+            if (!_clients.TryRemove(key, out var removed)) return;
+            client = removed;
+            Volatile.Write(ref _pollClients, _clients.Values.ToArray());
+        }
 
         client.Device.IsConnected = false;
         await SendAsync(client, "{\"t\":\"kicked\"}");

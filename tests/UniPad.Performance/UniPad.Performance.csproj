@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <CoreProject Condition="'$(CoreProject)' == ''">../../src/UniPad.Core/UniPad.Core.csproj</CoreProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CoreProject)" />
+  </ItemGroup>
+</Project>

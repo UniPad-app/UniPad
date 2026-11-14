@@ -23,7 +23,10 @@ public readonly record struct DeviceChangedEventArgs(InputDevice Device, bool Ad
 public sealed unsafe class SdlInputBackend : IDisposable
 {
     private readonly ConcurrentDictionary<uint, InputDevice> _byInstanceId = new();
-    private readonly ConcurrentDictionary<string, InputDevice> _byDeviceId = new();
+    private readonly ConcurrentDictionary<DeviceId, InputDevice> _byDeviceId = new();
+
+    // Rebuilt only on topology changes under _sdlLock, never on the high-rate read path.
+    private InputDevice[] _pollDevices = [];
 
     /// <summary>
     /// Instance ids belonging to ViGEm pads we created ourselves. See section 4.6 of the design
@@ -313,10 +316,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
         var hatCount = SDL3.SDL_GetNumJoystickHats(joystick);
 
         // Reuse the record for a returning device so bindings keep working after a reconnect.
-        if (!_byDeviceId.TryGetValue(deviceId.ToString(), out var device))
+        if (!_byDeviceId.TryGetValue(deviceId, out var device))
         {
             device = new InputDevice { Id = deviceId };
-            _byDeviceId[deviceId.ToString()] = device;
+            _byDeviceId[deviceId] = device;
         }
 
         device.InstanceId = instanceId;
@@ -349,6 +352,7 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
 
         _byInstanceId[instanceId] = device;
+        RefreshPollDevices();
 
         Log.Information(
             "Device connected: {Name} [{Id}] {Caps}",
@@ -461,6 +465,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
 
         device.IsConnected = false;
+        if (!device.IsVirtual)
+        {
+            RefreshPollDevices();
+        }
         device.Snapshot.Reset();
         _virtualInstanceIds.TryRemove(instanceId, out _);
 
@@ -471,15 +479,32 @@ public sealed unsafe class SdlInputBackend : IDisposable
         }
     }
 
+    private void RefreshPollDevices() =>
+        _pollDevices = _byInstanceId.Values
+            .Where(d => d.IsConnected && !d.IsVirtual).ToArray();
+
     private void PollLoop(CancellationToken token)
     {
+        using var waiter = new PollDeadlineWaiter();
         var stopwatch = Stopwatch.StartNew();
         var frequency = Stopwatch.Frequency;
+        var nextDeadline = stopwatch.ElapsedTicks;
+        var previousRate = _pollRateHz;
 
         while (!token.IsCancellationRequested)
         {
             var cycleStart = stopwatch.ElapsedTicks;
-            var intervalTicks = frequency / Math.Max(_pollRateHz, 1);
+            var rate = _pollRateHz;
+            var intervalTicks = frequency / Math.Max(rate, 1);
+
+            // Absolute deadlines compensate normal scheduler overshoot instead of adding it
+            // to every interval. Skip missed periods after a stall; never replay a backlog.
+            if (rate != previousRate || cycleStart - nextDeadline >= intervalTicks)
+            {
+                nextDeadline = cycleStart;
+            }
+            previousRate = rate;
+            nextDeadline += intervalTicks;
 
             try
             {
@@ -488,12 +513,9 @@ public sealed unsafe class SdlInputBackend : IDisposable
                     DrainEvents();
                     SDL3.SDL_UpdateJoysticks();
 
-                    foreach (var device in _byInstanceId.Values)
+                    foreach (var device in _pollDevices)
                     {
-                        if (device.IsConnected && !device.IsVirtual)
-                        {
-                            ReadDevice(device);
-                        }
+                        ReadDevice(device);
                     }
                 }
 
@@ -510,37 +532,10 @@ public sealed unsafe class SdlInputBackend : IDisposable
 
             var elapsed = stopwatch.ElapsedTicks - cycleStart;
             _lastLoopMicroseconds = elapsed * 1_000_000.0 / frequency;
-            PreciseWait(stopwatch, cycleStart + intervalTicks, frequency);
+            waiter.WaitUntil(stopwatch, nextDeadline, frequency);
         }
 
         Log.Information("Polling thread exiting after {Count} cycles", PollCount);
-    }
-
-    /// <summary>
-    /// Hybrid wait: coarse sleeps while there is plenty of time left, then a spin for the final
-    /// stretch. Thread.Sleep alone has ~15 ms granularity which would cap the rate around 60 Hz.
-    /// </summary>
-    private static void PreciseWait(Stopwatch stopwatch, long targetTicks, long frequency)
-    {
-        var oneMillisecondTicks = frequency / 1000;
-
-        while (true)
-        {
-            var remaining = targetTicks - stopwatch.ElapsedTicks;
-            if (remaining <= 0)
-            {
-                return;
-            }
-
-            if (remaining > oneMillisecondTicks * 2)
-            {
-                Thread.Sleep(1);
-            }
-            else
-            {
-                Thread.SpinWait(40);
-            }
-        }
     }
 
     private void DrainEvents()
@@ -618,7 +613,7 @@ public sealed unsafe class SdlInputBackend : IDisposable
             return null;
         }
 
-        var device = _byDeviceId.GetValueOrDefault(id.ToString());
+        var device = _byDeviceId.GetValueOrDefault(id);
         return device ?? (id.IsSynthetic ? SyntheticResolver?.Invoke(id) : null);
     }
 

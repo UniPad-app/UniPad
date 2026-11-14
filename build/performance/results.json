@@ -1,0 +1,619 @@
+{
+  "baselineCommit": "da09c32841de6f0debf09a236117ebe3afa3d92f",
+  "method": "Five separate processes per version; alternating order; Release; DOTNET_TieredCompilation=0; 40000 warmup operations; Stopwatch and thread allocation counter. Synthetic microbenchmarks exclude native IO. Regression suite also runs real SDL with virtual joysticks and real loopback WebSockets.",
+  "summary": [
+    {
+      "name": "FindDevice_physical",
+      "baseline": {
+        "medianNs": 155.6027,
+        "minNs": 153.4064,
+        "maxNs": 159.5568,
+        "bytesPerOperation": 88
+      },
+      "optimized": {
+        "medianNs": 87.9216,
+        "minNs": 83.4757,
+        "maxNs": 91.3774,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 43.49609614743189
+    },
+    {
+      "name": "Mapping_27_bound_targets",
+      "baseline": {
+        "medianNs": 3669.5744,
+        "minNs": 3627.8984,
+        "maxNs": 3773.4092,
+        "bytesPerOperation": 2376
+      },
+      "optimized": {
+        "medianNs": 1739.172,
+        "minNs": 1700.3576,
+        "maxNs": 1760.1872,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 52.60562096792478
+    },
+    {
+      "name": "OutputCycle_no_connected_pads",
+      "baseline": {
+        "medianNs": 91.1664,
+        "minNs": 90.9568,
+        "maxNs": 93.372,
+        "bytesPerOperation": 64
+      },
+      "optimized": {
+        "medianNs": 73.478,
+        "minNs": 72.7848,
+        "maxNs": 75.2372,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 19.40232366310395
+    },
+    {
+      "name": "OutputCycle_eight_fake_pads",
+      "baseline": {
+        "medianNs": 30221.058,
+        "minNs": 28780.088,
+        "maxNs": 30684.517,
+        "bytesPerOperation": 19072
+      },
+      "optimized": {
+        "medianNs": 14090.968,
+        "minNs": 14039.193,
+        "maxNs": 14139.863,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 53.373677387469364
+    },
+    {
+      "name": "PhonePoll_zero_clients",
+      "baseline": {
+        "medianNs": 98.8092,
+        "minNs": 97.2412,
+        "maxNs": 102.2928,
+        "bytesPerOperation": 0
+      },
+      "optimized": {
+        "medianNs": 26.0688,
+        "minNs": 25.8972,
+        "maxNs": 27.2692,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 73.61703161244095
+    },
+    {
+      "name": "PhonePoll_eight_clients",
+      "baseline": {
+        "medianNs": 688.0896,
+        "minNs": 669.4668,
+        "maxNs": 710.0156,
+        "bytesPerOperation": 144
+      },
+      "optimized": {
+        "medianNs": 346.7816,
+        "minNs": 324.7076,
+        "maxNs": 348.8496,
+        "bytesPerOperation": 0
+      },
+      "timeReductionPercent": 49.602261100879886
+    }
+  ],
+  "runs": [
+    {
+      "label": "baseline",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 159.5568,
+          "bytesPerOperation": 88
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 3643.2688,
+          "bytesPerOperation": 2376
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 93.1516,
+          "bytesPerOperation": 64
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 29474.974,
+          "bytesPerOperation": 19072
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 100.9564,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 688.0896,
+          "bytesPerOperation": 144
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 1
+    },
+    {
+      "label": "optimized",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 87.9216,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 1739.172,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 74.418,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 14090.968,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 25.8972,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 346.7816,
+          "bytesPerOperation": 0
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 1
+    },
+    {
+      "label": "optimized",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 87.677,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 1760.1872,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 73.478,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 14132.772,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 27.1556,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 348.8496,
+          "bytesPerOperation": 0
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 2
+    },
+    {
+      "label": "baseline",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 154.184,
+          "bytesPerOperation": 88
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 3669.5744,
+          "bytesPerOperation": 2376
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 90.9568,
+          "bytesPerOperation": 64
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 30684.517,
+          "bytesPerOperation": 19072
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 97.2412,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 710.0156,
+          "bytesPerOperation": 144
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 2
+    },
+    {
+      "label": "baseline",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 158.9313,
+          "bytesPerOperation": 88
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 3773.4092,
+          "bytesPerOperation": 2376
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 93.372,
+          "bytesPerOperation": 64
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 30453.499,
+          "bytesPerOperation": 19072
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 98.2024,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 688.8572,
+          "bytesPerOperation": 144
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 3
+    },
+    {
+      "label": "optimized",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 90.418,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 1700.3576,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 72.842,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 14139.863,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 27.2692,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 326.8304,
+          "bytesPerOperation": 0
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 3
+    },
+    {
+      "label": "optimized",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 91.3774,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 1740.9352,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 72.7848,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 14049.21,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 26.0688,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 324.7076,
+          "bytesPerOperation": 0
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 4
+    },
+    {
+      "label": "baseline",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 155.6027,
+          "bytesPerOperation": 88
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 3698.364,
+          "bytesPerOperation": 2376
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 91.1664,
+          "bytesPerOperation": 64
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 30221.058,
+          "bytesPerOperation": 19072
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 102.2928,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 684.9412,
+          "bytesPerOperation": 144
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 4
+    },
+    {
+      "label": "baseline",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 153.4064,
+          "bytesPerOperation": 88
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 3627.8984,
+          "bytesPerOperation": 2376
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 90.9876,
+          "bytesPerOperation": 64
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 28780.088,
+          "bytesPerOperation": 19072
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 98.8092,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 669.4668,
+          "bytesPerOperation": 144
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 5
+    },
+    {
+      "label": "optimized",
+      "platform": "Debian GNU/Linux 13 (trixie)",
+      "runtime": "9.0.22",
+      "logicalProcessors": 2,
+      "checks": 54,
+      "replayFrames": 100000,
+      "replayChecksum": "F02B888F312E07B6",
+      "measurements": [
+        {
+          "name": "FindDevice_physical",
+          "iterations": 1000000,
+          "nsPerOperation": 83.4757,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "Mapping_27_bound_targets",
+          "iterations": 250000,
+          "nsPerOperation": 1730.1284,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_no_connected_pads",
+          "iterations": 250000,
+          "nsPerOperation": 75.2372,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "OutputCycle_eight_fake_pads",
+          "iterations": 100000,
+          "nsPerOperation": 14039.193,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_zero_clients",
+          "iterations": 250000,
+          "nsPerOperation": 25.914,
+          "bytesPerOperation": 0
+        },
+        {
+          "name": "PhonePoll_eight_clients",
+          "iterations": 250000,
+          "nsPerOperation": 347.2696,
+          "bytesPerOperation": 0
+        }
+      ],
+      "note": "Synthetic Core-only microbenchmarks; no SDL hardware IO, ViGEm, Avalonia, or DS4Windows included.",
+      "run": 5
+    }
+  ],
+  "legacyWaitIsolatedLinux": [
+    {
+      "mode": "legacy",
+      "hz": 1000,
+      "actualHz": 999.5367268921707,
+      "cpuCorePercent": 99.99696706094875,
+      "intervalP50Us": 1000.335,
+      "intervalP95Us": 1000.516,
+      "intervalP99Us": 1000.94,
+      "maximumUs": 1091.07
+    },
+    {
+      "mode": "legacy",
+      "hz": 2000,
+      "actualHz": 1997.9357330672528,
+      "cpuCorePercent": 99.98395051625839,
+      "intervalP50Us": 500.376,
+      "intervalP95Us": 500.612,
+      "intervalP99Us": 501.31,
+      "maximumUs": 608.789
+    }
+  ],
+  "windowsNativeWait": "NOT RUN: Windows unavailable",
+  "windowsFullApplication": "NOT RUN: Windows and physical controller unavailable",
+  "DS4Windows": "NOT RUN: Windows and matched physical hardware unavailable"
+}

@@ -1,0 +1,181 @@
+گزارش بررسی و بهینه‌سازی UniPad
+================================
+
+مبنای دقیق بررسی:
+https://github.com/UniPad-app/UniPad
+Commit: da09c32841de6f0debf09a236117ebe3afa3d92f — v1.5.0
+Issue: https://github.com/UniPad-app/UniPad/issues/3
+متن issue: This app uses too much CPU. Even on 1000hz, DS4windows which is a similar app uses way less cpu than this.
+
+۱) نتیجه روشن، همراه با مرز اطمینان
+----------------------------------
+در کد نسخه مبنا، یک علت بسیار قوی برای مصرف غیرضروری CPU وجود دارد:
+تابع PreciseWait فقط هنگامی Sleep می‌کند که زمان باقی‌مانده بیشتر از ۲ میلی‌ثانیه باشد.
+در ۱۰۰۰ هرتز کل دوره ۱ میلی‌ثانیه و در ۲۰۰۰ هرتز نیم میلی‌ثانیه است؛ بنابراین این شرط در انتظار معمول بین دو poll برقرار نمی‌شود و نخ پیوسته SpinWait می‌کند.
+این رفتار حتی در نبود ورودی فعال هم رخ می‌دهد. نمایش Loop time در Advanced فقط بدنه حلقه را اندازه می‌گیرد و زمان انتظار پرمصرف را در بر ندارد؛ پس Loop time کوچک دلیل کم‌مصرف بودن برنامه نیست.
+
+کد انتظار قدیمی، به‌صورت جداگانه و بدون رابط کاربری و سخت‌افزار، روی Linux/.NET 9 اجرا شد:
+- نرخ هدف ۱۰۰۰ هرتز: نرخ مشاهده‌شده 999.537 Hz، مصرف 99.997 درصد یک هسته.
+- نرخ هدف ۲۰۰۰ هرتز: نرخ مشاهده‌شده 1997.936 Hz، مصرف 99.984 درصد یک هسته.
+این آزمایش مشکل خود الگوریتم انتظار را تأیید می‌کند، نه مقدار مصرف کل UniPad روی کامپیوتر شما.
+۱۰۰٪ یک هسته با ۱۰۰٪ کل پردازنده تفاوت دارد؛ روی CPU با ۸ پردازنده منطقی، تقریباً معادل ۱۲٫۵٪ ظرفیت کل است.
+
+ادعای «کم‌مصرف‌تر بودن DS4Windows» در این محیط تأیید یا رد نشده است. برای آن به ویندوز، کنترلر واقعی مشترک، درایورهای یکسان و تنظیمات همسان نیاز است. هیچ عدد ساختگی برای DS4Windows یا CPU کل نسخه اصلاح‌شده ارائه نشده است.
+
+۲) تغییرات اجرایی، دقیقاً در چهار فایل
+-------------------------------------
+الف) src/UniPad.Core/Input/PollDeadlineWaiter.cs — فایل جدید
+یک high-resolution waitable timer ویندوز برای عمر نخ polling ساخته و دوباره استفاده می‌شود.
+به‌جای مصرف CPU در تمام فاصله بین reportها، نخ با تایمر سیستم‌عامل منتظر می‌ماند.
+CreateWaitableTimerExW با پرچم HIGH_RESOLUTION، SetWaitableTimerEx با دوره صفر و مهلت نسبی و WaitForSingleObject استفاده شده است.
+Timer handle از نوع SafeWaitHandle است و هنگام خروج آزاد می‌شود.
+تنظیم global timer resolution، رجیستری یا power plan تغییر نمی‌کند.
+در ویندوزهای فاقد پشتیبانی یا خطای تایمر، هشدار ثبت می‌شود و انتظار دقیق قدیمی باقی می‌ماند؛ در این حالت مصرف زیاد CPU ممکن است همچنان وجود داشته باشد.
+مسیر اصلی نیازمند Windows 10 version 1803 یا جدیدتر است؛ ساخت برنامه به‌تنهایی اجرای موفق این APIها را اثبات نمی‌کند.
+
+ب) src/UniPad.Core/Input/SdlInputBackend.cs
+- کلید lookup دستگاه از رشته به DeviceId تغییر کرد. خود DeviceId، عادی‌سازی GUID، نمایش guid:port و فایل پروفایل تغییر نکرده‌اند.
+- ساخت رشته برای هر binding حذف شد. در حالت ۲۷ binding، قبلاً برای هر بازیکن در هر poll حدود ۲۳۷۶ بایت فقط در این بخش ساخته می‌شد.
+- آرایه دستگاه‌های قابل poll فقط هنگام اتصال/قطع دستگاه ساخته می‌شود؛ گرفتن Values و کپی مجموعه در هر poll حذف شده است.
+- نگهداری دستگاه‌های مجازی خارج از ورودی، twin portها، بازیابی record قبلی و اعلان hot-plug باقی مانده‌اند.
+- زمان‌بندی از deadline مطلق استفاده می‌کند تا تأخیر عادی بیدار شدن به همه دوره‌ها اضافه نشود. پس از عقب‌افتادگی بیش از یک دوره، زمان‌بندی از نو تنظیم می‌شود؛ backlog انباشته پخش نمی‌شود. تغییر نرخ نیز deadline را بازتنظیم می‌کند.
+- تمام mappingها و reportها همچنان در هر چرخه اجرا می‌شوند؛ برنامه به «فقط هنگام تغییر ورودی» محدود نشده است.
+
+پ) src/UniPad.Core/Network/PhoneServer.cs
+- فهرست immutable مراجع PhoneClient فقط هنگام افزودن یا حذف کلاینت ساخته می‌شود و با Volatile منتشر می‌شود.
+- چرخه Poll دیگر از ConcurrentDictionary.Values یک snapshot جدید نمی‌گیرد.
+- قفل هر کلاینت، latch دکمه ۴۰ میلی‌ثانیه‌ای، neutralisation ورودی کهنه پس از ۵۰۰ میلی‌ثانیه، reconnect، rename و kick دست‌نخورده‌اند.
+- کلاینت‌های آفلاین نیز مانند قبل در فهرست باقی می‌مانند تا رفتار release و reconnect عوض نشود.
+- مدیریت تغییر فهرست زیر قفل admission انجام می‌شود؛ ساخت cache ناسازگار با kick هم‌زمان جلوگیری شده است.
+
+ت) src/UniPad.Core/Output/OutputManager.cs
+delegate مربوط به GetStrengthForDeviceKey یک‌بار در سازنده ساخته می‌شود، نه در هر ProcessCycle.
+خود سیاست rumble، فاصله حداقل فرمان‌ها، reportهای خروجی و اتصال padها تغییر نکرده‌اند.
+
+۳) قابلیت‌ها و تنظیماتی که عمداً تغییر نکرده‌اند
+------------------------------------------------
+تمام فایل‌های رابط کاربری، منابع، استایل‌ها و متن‌های فارسی/انگلیسی از مبنا بدون تغییر باقی مانده‌اند.
+خود الگوریتم MappingEngine، AutoMapper، binding format و DTOهای پروفایل نیز تغییر نکرده‌اند.
+- هشت بازیکن و دو نوع خروجی Xbox 360 و DualShock 4؛ محدودیت چهار XInput ویندوز.
+- button/axis/hat mapping، toggle، invert، threshold، modifier، radial deadzone و range.
+- emulation استیک با D-pad و کالیبراسیون resting value.
+- keyboard/mouse، حساسیت، بازگشت و invert ماوس.
+- کنترلر تلفن، QR، layout، زبان، rename، reconnect، latch و stale-input release.
+- rumble، Identify، HidHide، نصب درایور، profile، tray، theme، startup و update.
+- نرخ قابل تنظیم ۶۰ تا ۲۰۰۰ هرتز و امکان تغییر آن حین اجرا.
+
+«حذف نکردن قابلیت در کد» با «تأیید همه قابلیت‌ها روی تمام سخت‌افزارها» یکی نیست.
+این بسته بهینه‌سازی محافظه‌کارانه و قابل بازبینی است؛ تضمین ریاضی نبود regression یا ادعای «بهینه‌ترین پیاده‌سازی ممکن» ندارد.
+Windows یک سیستم hard-real-time نیست؛ کاهش CPU باید همراه نرخ واقعی و p99 latency تأیید شود.
+
+۴) تست‌های انجام‌شده
+--------------------
+- Build نسخه اصلی: موفق؛ یک هشدار CS8602 از قبل در MainWindowViewModel.cs:102.
+- Build نسخه اصلاح‌شده: موفق؛ همان هشدار قبلی و بدون خطای build.
+- انتشار cross-platform برای win-x64، self-contained، single-file و compressed: موفق. اجرای EXE روی ویندوز در این محیط انجام نشده است.
+- ۵ اجرای مستقل برای هر نسخه با ترتیب تناوبی قبل/بعد؛ در هر اجرا ۵۴ check موفق.
+- SDL واقعی با joystick مجازی آزمایشی: button/axis/hat، دو دستگاه همسان با port مجزا، حذف، بازگشت همان record، زنده ماندن دستگاه دوم، تغییر زنده نرخ‌های ۶۰، ۱۲۵، ۲۵۰، ۵۰۰، ۱۰۰۰ و ۲۰۰۰ هرتز.
+- ارتباط WebSocket واقعی روی loopback: admission تلفن، مقیاس axis، latch دکمه، expiry، stale neutralisation، reconnect با همان record، rename و kick.
+- رفتار نگاشت: تبدیل دکمه/محور، threshold، invert، modifier، deadzone، trigger، hat، D-pad، toggle و release هنگام قطع.
+- بازپخش تصادفی قطعی ۱۰۰٬۰۰۰ فریم با ۲۷ target و source enumها. checksum قبل و بعد در تمام اجراها برابر است:
+  F02B888F312E07B6
+بازپخش، تمام فضای ورودی ممکن یا سخت‌افزار واقعی را پوشش نمی‌دهد. برای مثال دامنه محورهای تصادفی -32767 تا 32767 است؛ این آزمایش ادعای exhaustive بودن ندارد.
+
+۵) میکروبنچمارک قبل/بعد — اعداد واقعی همین محیط
+----------------------------------------------
+محیط: Debian 13، .NET runtime 9.0.22، SDK 9.0.320، دو پردازنده منطقی در sandbox.
+Release، متغیر DOTNET_TieredCompilation=0، چهل‌هزار عملیات warmup برای هر اندازه‌گیری، پنج process مستقل برای هر نسخه، ترتیب تناوبی.
+ستون زمان، میانه پنج اجراست؛ همه اعداد زمان زیر میکروثانیه بر عملیات هستند.
+
+عملیات                                  قبل       بعد       کاهش زمان
+FindDevice فیزیکی                       0.1556    0.0879    43.5%
+نگاشت ۲۷ target                         3.6696    1.7392    52.6%
+چرخه خروجی بدون pad                     0.0912    0.0735    19.4%
+چرخه خروجی ۸ fake pad بدون ViGEm IO     30.2211   14.0910   53.4%
+Poll تلفن، بدون کلاینت                  0.0988    0.0261    73.6%
+Poll هشت record تلفن                    0.6881    0.3468    49.6%
+
+تخصیص managed memory بر عملیات:
+FindDevice:                           88 -> 0 bytes
+نگاشت ۲۷ target:                    2376 -> 0 bytes
+چرخه خروجی بدون pad:                  64 -> 0 bytes
+چرخه خروجی ۸ fake pad:             19072 -> 0 bytes
+Poll بدون تلفن:                        0 -> 0 bytes
+Poll هشت تلفن:                       144 -> 0 bytes
+
+در ۱۰۰۰ چرخه بر ثانیه، ۱۹۰۷۲ بایت بر چرخه تقریباً ۱۹٫۱ مگابایت garbage در ثانیه برای سناریوی مصنوعی هشت pad است؛ این عدد از bytes/op محاسبه شده، نه اینکه به‌عنوان مقدار کل حافظه یا GC برنامه واقعی اندازه‌گیری شده باشد.
+صفر بودن allocation فقط برای عملیات اندازه‌گیری‌شده است، نه برای همه شبکه، UI، bind capture یا rumble فعال. نمونه فهرست due در FeedbackRouter همچنان می‌تواند allocation داشته باشد.
+همه نتایج خام، min/max، تعداد تکرار و وضعیت «اجرا نشده» آزمایش‌های ویندوز در results.json موجود است.
+میکروبنچمارک‌ها شامل SDL hardware IO، driver، ViGEm، بازی، renderer یا DS4Windows نیستند. درصد کاهش زمان آن‌ها معادل درصد کاهش CPU کل برنامه نیست.
+
+۶) نصب patch و بازتولید
+-----------------------
+این ZIP یک overlay سورس است، نه پروژه کامل و نه EXE نصب‌شونده.
+۱. از checkout و پوشه داده فعلی خود نسخه پشتیبان بگیرید.
+۲. مطمئن شوید سورس روی commit مبنای بالا است؛ اگر نسخه دیگری دارید ابتدا diffها را تطبیق دهید و کورکورانه overwrite نکنید.
+۳. ZIP را در ریشه همان checkout استخراج کنید، به‌طوری که src و tests و build با پوشه‌های پروژه ادغام شوند.
+۴. با .NET 9 SDK بسازید:
+   dotnet build UniPad.sln -c Release
+۵. برای EXE مستقل:
+   build\publish.cmd
+خود روش اجرا، فایل تنظیمات و پروفایل‌های برنامه عوض نشده‌اند. داده شخصی یا credential در بسته وجود ندارد.
+
+تست نسخه بهینه‌شده:
+   dotnet run --project tests/UniPad.Performance -c Release -- patched
+برای بازتولید دقیق جدول، پیش از اجرا در PowerShell:
+   $env:DOTNET_TieredCompilation = '0'
+بهتر است ابتدا build کنید و سپس DLL تست را جداگانه اجرا کنید تا process اندازه‌گیری مستقل باشد:
+   dotnet build tests/UniPad.Performance -c Release -o artifacts/perf-after
+   dotnet artifacts/perf-after/UniPad.Performance.dll after
+
+برای نسخه اصلی یک checkout مستقل از commit مبنا بسازید. مثلاً از checkout اصلی git:
+   git worktree add --detach ..\UniPad-before da09c32841de6f0debf09a236117ebe3afa3d92f
+سپس همان تست‌ها را با reference به Core نسخه قبل کامپایل کنید؛ مسیر زیر را با مسیر مطلق واقعی خود جایگزین کنید:
+   dotnet build tests/UniPad.Performance -c Release -p:CoreProject="C:\work\UniPad-before\src\UniPad.Core\UniPad.Core.csproj" -o artifacts/perf-before
+   dotnet artifacts/perf-before/UniPad.Performance.dll before
+فایل‌های tests جزو solution اصلی نشده‌اند و باید با دستور صریح بالا اجرا شوند.
+
+بنچمارک انتظار قدیمی و تایمر جدید، فقط در ویندوز:
+   dotnet run --project tests/UniPad.Performance -c Release -- --wait
+این فرمان تایمر native را واقعاً فعال می‌کند؛ اگر فعال نشود، به‌جای نشان دادن نتیجه گمراه‌کننده fallback، آزمایش خطا می‌دهد.
+CPU/core، Hz واقعی و فاصله p50/p95/p99/max برای نرخ‌های مختلف چاپ می‌شوند. این اعداد زمان‌بندی نخ هستند، نه latency سخت‌افزار تا بازی.
+فقط الگوریتم انتظار قدیمی روی هر OS:
+   dotnet run --project tests/UniPad.Performance -c Release -- --legacy-wait
+
+۷) مقایسه واقعی CPU و DS4Windows در ویندوز
+-------------------------------------------
+build/performance/Measure-Process.ps1 برای هر سه برنامه یک روش اندازه‌گیری مشترک فراهم می‌کند.
+هر برنامه را جداگانه اجرا کنید؛ نسخه‌های UniPad هم‌زمان اجرا نمی‌شوند و نباید با DS4Windows هم‌زمان روی یک pad رقابت کنند.
+در صورت محدودیت دسترسی به process، PowerShell را با همان سطح دسترسی برنامه مقصد اجرا کنید.
+PID را از Task Manager بگیرید. مثال‌ها با PID نمونه هستند:
+   .\build\performance\Measure-Process.ps1 -TargetProcessId 1234 -Label UniPad-before -Scenario idle-tray -Seconds 60 -WarmupSeconds 15 -PollHz 1000
+   .\build\performance\Measure-Process.ps1 -TargetProcessId 2345 -Label UniPad-after -Scenario idle-tray -Seconds 60 -WarmupSeconds 15 -PollHz 1000
+   .\build\performance\Measure-Process.ps1 -TargetProcessId 3456 -Label DS4Windows -Scenario idle-tray -Seconds 60 -WarmupSeconds 15 -PollHz 1000
+اسکریپت CSV نمونه‌های CPU/memory/thread/handle و JSON مشخصات سیستم، power plan، SHA256 فایل اجرا و میانگین وزنی CPU را ذخیره می‌کند.
+PollHz فقط metadata است؛ اسکریپت نرخ را تغییر نمی‌دهد و Hz واقعی یا input latency را اندازه نمی‌گیرد.
+CorePercent یعنی درصد یک هسته؛ MachinePercent بر تعداد پردازنده‌های منطقی تقسیم شده است. هزینه DPC/ISR درایورها به این process نسبت داده نمی‌شود؛ برای تحلیل آن WPR/WPA لازم است.
+
+برای مقایسه منصفانه:
+- نسخه/distribution دقیق DS4Windows را یادداشت کنید. برنامه‌های دارای این نام الزاماً یک نسخه کد ندارند.
+- یک DS4 یا DualSense پشتیبانی‌شده، یک کابل یا Bluetooth یکسان، firmware و driver یکسان.
+- یک خروجی مجازی مشابه، یک تعداد کنترلر، یک deadzone/range و یک workload.
+- actual hardware report rate را جداگانه بررسی کنید؛ عدد هدف در UniPad لزوماً نرخ HID واقعی نیست و معنای گزینه ۱۰۰۰Hz در دو برنامه الزاماً یکسان نیست.
+- اگر keyboard/mouse یا phone server در یکی فعال است و در دیگری وجود ندارد، این تفاوت را در گزارش ذکر کنید؛ صرفاً مقایسه دو عدد CPU کافی نیست.
+- هر سناریو را حداقل سه بار با ۱۵ ثانیه warmup و ۶۰ ثانیه ثبت اجرا کنید و ترتیب را جابه‌جا کنید.
+- سناریوها: بدون دستگاه، idle با یک دستگاه، active با یک دستگاه، پنجره باز، tray، Advanced باز، USB، Bluetooth، چندبازیکن، rumble و ورودی تلفن.
+- نسخه قدیمی و جدید UniPad را با تنظیمات کاملاً یکسان مقایسه کنید؛ کاهش نرخ یا غیرفعال کردن قابلیت‌ها نباید به‌عنوان بهینه‌سازی جا زده شود.
+
+۸) پیش از انتشار عمومی چه چیزهایی هنوز باید آزموده شوند؟
+--------------------------------------------------------
+[ ] تایمر native روی Windows 10/11، با پنجره visible، minimized و tray.
+[ ] نرخ واقعی و p99/max interval در ۱۰۰۰/۲۰۰۰Hz زیر بار CPU و بازی؛ تست resume از sleep.
+[ ] تست فیزیکی USB/Bluetooth، twin adapter، wheel و کنترلرهای قدیمی.
+[ ] Xbox360 و DS4 واقعی از طریق ViGEm، تخصیص XInput، چهار و هشت بازیکن، قطع/وصل هنگام بازی.
+[ ] rumble/Identify و stop rumble؛ HidHide و بازیابی پس از crash.
+[ ] keyboard/mouse واقعی، bind capture و profile loading هنگام بازی.
+[ ] layout و لمس چندگانه روی گوشی واقعی و تغییر زبان زنده.
+[ ] سنجش whole-process CPU روی ویندوز و DS4Windows با سخت‌افزار یکسان.
+
+این موارد «انجام نشده» هستند، نه اینکه موفق فرض شده باشند. نسخه مبنا و نسخه اصلاح‌شده در تست‌های انجام‌شده هم‌رفتار بوده‌اند، اما جای تست سخت‌افزاری را نمی‌گیرند.
+
+مخزن GitHub شما تغییر نکرده و commit یا PR به آن ارسال نشده است.

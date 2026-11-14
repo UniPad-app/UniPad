@@ -134,7 +134,7 @@ camera, then pick the phone in a player's **Input Device** box. Details in
 - Dark and light themes, each with its own tuned player palette
 - **English and Persian (فارسی)** with full right-to-left layout
 - In-app update check
-- 1000 Hz polling with a zero-allocation hot path
+- Configurable 60–2000 Hz polling; reusable device topology and allocation-free steady-state device lookup
 
 <div align="center">
    <img src="docs/images/unipad-light-theme.png" width="820" alt="UniPad main window in the light theme">
@@ -347,8 +347,8 @@ UniPad/
 | Area | Decision |
 |---|---|
 | Input | SDL3 (`ppy.SDL3-CS`) — joystick + gamepad + events, background-events hint enabled |
-| Poll loop | Dedicated thread at 1000 Hz, hybrid `Thread.Sleep(1)` + `SpinWait` precise wait |
-| Hot path | Zero allocation: pre-allocated arrays, mutable `PadState` passed `in`/`ref`, no LINQ |
+| Poll loop | Dedicated thread, absolute deadlines, reusable Windows high-resolution waitable timer; legacy precise-wait fallback on unsupported systems |
+| Hot path | Typed device keys, topology snapshots rebuilt only on add/remove, cached rumble callback; capture, feedback and network parsing can still allocate |
 | Dead zone | **Radial**: `mag = √(x²+y²)`, then `min((mag−dz)/(1−dz), 1) × range` |
 | Axis drift | Resting values captured at open; bind capture needs >50 % travel from a fresh baseline |
 | Feedback loop | `ExpectVirtualDevice()` blacklists joysticks appearing within 500 ms of a ViGEm connect |
@@ -356,6 +356,71 @@ UniPad/
 | Phones | Local Kestrel server + WebSocket; state streamed at ~60 Hz and on every change, short taps latched 40 ms, 4 KB message cap |
 | UI refresh | 60 Hz dispatcher timer, decoupled from input; diagnostics throttled to ~6 Hz |
 | Persistence | `System.Text.Json` **source generator** (trim-safe), portable data folder |
+
+## CPU optimisation and reproducible verification
+
+This working-tree patch is based on **da09c32841de6f0debf09a236117ebe3afa3d92f**
+(v1.5.0), addressing [issue #3](https://github.com/UniPad-app/UniPad/issues/3).
+No mapping algorithm, saved setting, profile schema, phone protocol, UI, output report
+frequency setting, rumble policy or driver feature was removed.
+
+- `Input/PollDeadlineWaiter.cs` releases the CPU using a reusable high-resolution Windows timer.
+  Windows 10 1803+ is needed for this path. If the native timer cannot be used, a warning is
+  logged once and the legacy precise waiter is retained. The fallback can still consume a core.
+- Deadlines compensate ordinary wake-up overshoot, skip missed periods after a stall, and
+  reset when the configured rate changes. Windows scheduling jitter is not a hard real-time guarantee.
+- Physical device lookups no longer format `DeviceId` strings for each of the 27 mapping targets.
+- SDL and phone polling reuse arrays rebuilt only when device/client topology changes.
+- Output polling reuses the rumble-strength callback rather than allocating a delegate per cycle.
+
+### Completed verification and limits
+
+Both source versions built successfully. The same hardware-free test executable passed **54
+checks** per run, including real SDL virtual joystick input, twin ports, reconnects, runtime rate
+changes, real loopback phone WebSockets, stale release, short-tap latching, and phone reconnects.
+The deterministic **100,000-frame** mapping replay produced identical checksums. Five separate
+Release processes per version were measured in alternating order on Linux/.NET 9, with tiered
+compilation disabled for reproducibility. Raw data and methodology are in
+[`build/performance/results.json`](build/performance/results.json).
+
+Selected medians (microbenchmarks, **not whole-application CPU percentages**):
+
+| Synthetic operation | Before | Patched | Allocation per operation, before → patched |
+|---|---:|---:|---:|
+| Evaluate 27 bound targets | 3.670 µs | 1.739 µs | 2376 → 0 bytes |
+| Eight fake-pad output cycle, no ViGEm IO | 30.221 µs | 14.091 µs | 19072 → 0 bytes |
+| Poll eight phone records, no network parsing | 0.688 µs | 0.347 µs | 144 → 0 bytes |
+
+The original waiter alone consumed approximately 100% of **one core** at 1000/2000 Hz on
+this Linux host. This is not a measurement of the full Windows application. The patched
+application also cross-published successfully as a self-contained win-x64 single-file executable.
+**Native Windows timer performance, full Windows CPU/latency, physical rumble/HidHide and
+DS4Windows comparisons have not been run.** No production deployment or upstream push was made.
+
+### Re-run locally
+
+From the source root with the .NET 9 SDK:
+
+```powershell
+dotnet run --project tests/UniPad.Performance -c Release -- patched
+# Windows only: legacy vs native timer, CPU/core and interval p50/p95/p99 at 60–2000 Hz
+dotnet run --project tests/UniPad.Performance -c Release -- --wait
+# Any OS: isolated legacy busy-wait at 1000 and 2000 Hz
+dotnet run --project tests/UniPad.Performance -c Release -- --legacy-wait
+# Whole-process Windows measurements: start/configure each app manually, one at a time.
+.\build\performance\Measure-Process.ps1 -TargetProcessId 1234 -Label UniPad-before -Scenario idle-tray
+```
+
+The harness accepts `-p:CoreProject=<absolute path to upstream UniPad.Core.csproj>` at build time
+so exactly the same tests can run against the original checkout; see
+[`build/performance/REVIEW_FA.txt`](build/performance/REVIEW_FA.txt) for complete instructions,
+the patch application steps and the hardware release checklist. Before release, run at least
+three matched 60-second Windows samples per scenario (idle/active, visible/tray, USB/Bluetooth,
+1/4/8 players where supported). Check achieved input/report rate and p99 latency as well as CPU;
+a lower CPU number caused by lost polling frequency is not a valid improvement. For DS4Windows,
+record its exact distribution/version and use the same supported physical pad, transport, profile,
+output type and settings. The PowerShell script measures CPU/memory only; its `PollHz` parameter
+records the requested rate and does not measure or change it.
 
 ## Troubleshooting
 
